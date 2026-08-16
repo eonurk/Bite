@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory() as directory:
             path.write_bytes(data)
             edge_files.append(path)
     sources = FILES + edge_files
-    for mode in ("c", "cl", "cb", "clb"):
+    for mode in ("c", "cl", "cb", "clb", "cbh", "clbh"):
         for index, source in enumerate(sources):
             encoded = temp / f"{mode}-{index}.bite"
             decoded = temp / f"{mode}-{index}.decoded"

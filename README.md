@@ -28,3 +28,8 @@ Each block has a nine-byte `(mode, decoded_size, stored_size)` header and is
 stored as either raw bytes or a v1 token payload, whichever is strictly smaller.
 Modes `cb` and `clb` select blocked greedy and blocked lazy compression;
 decompression detects the stream version automatically.
+
+Experimental modes `cbh` and `clbh` add a third exact-cost candidate: a static
+Huffman encoding of the LZ token payload. Its payload includes the decoded token
+size and a compact serialized Huffman tree; blocks use it only when the complete
+representation is smaller than both raw and plain-LZ alternatives.

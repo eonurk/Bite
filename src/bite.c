@@ -61,6 +61,11 @@ static void append_u32le(Buffer *buffer, uint32_t value) {
     for (unsigned i = 0; i < 4; ++i) buffer->data[buffer->size++] = (uint8_t)(value >> (8u * i));
 }
 
+static void append_u16le(Buffer *buffer, uint16_t value) {
+    append_byte(buffer, (uint8_t)value);
+    append_byte(buffer, (uint8_t)(value >> 8));
+}
+
 static void append_u64le(Buffer *buffer, uint64_t value) {
     reserve(buffer, 8);
     for (unsigned i = 0; i < 8; ++i) buffer->data[buffer->size++] = (uint8_t)(value >> (8u * i));
@@ -76,6 +81,10 @@ static uint32_t read_u32le(const uint8_t *p) {
     uint32_t value = 0;
     for (unsigned i = 0; i < 4; ++i) value |= (uint32_t)p[i] << (8u * i);
     return value;
+}
+
+static uint16_t read_u16le(const uint8_t *p) {
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
 }
 
 static uint32_t hash3(const uint8_t *p) {
@@ -178,7 +187,242 @@ static Buffer compress_buffer(const uint8_t *input, size_t input_size, int lazy)
     return output;
 }
 
-static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy) {
+typedef struct {
+    uint32_t frequency;
+    int left;
+    int right;
+    int symbol;
+    int min_symbol;
+} HuffNode;
+
+typedef struct {
+    Buffer *output;
+    uint8_t byte;
+    unsigned used;
+} BitWriter;
+
+typedef struct {
+    const uint8_t *data;
+    size_t size;
+    size_t byte;
+    unsigned bit;
+} BitReader;
+
+static void write_bit(BitWriter *writer, unsigned bit) {
+    writer->byte = (uint8_t)((writer->byte << 1) | (bit & 1u));
+    if (++writer->used == 8) {
+        append_byte(writer->output, writer->byte);
+        writer->byte = 0;
+        writer->used = 0;
+    }
+}
+
+static void finish_bits(BitWriter *writer) {
+    if (writer->used) {
+        writer->byte = (uint8_t)(writer->byte << (8u - writer->used));
+        append_byte(writer->output, writer->byte);
+        writer->byte = 0;
+        writer->used = 0;
+    }
+}
+
+static int read_bit(BitReader *reader) {
+    if (reader->byte >= reader->size) return -1;
+    int bit = (reader->data[reader->byte] >> (7u - reader->bit)) & 1u;
+    if (++reader->bit == 8) {
+        reader->bit = 0;
+        ++reader->byte;
+    }
+    return bit;
+}
+
+static int huff_less(const HuffNode *nodes, int a, int b) {
+    if (nodes[a].frequency != nodes[b].frequency)
+        return nodes[a].frequency < nodes[b].frequency;
+    if (nodes[a].min_symbol != nodes[b].min_symbol)
+        return nodes[a].min_symbol < nodes[b].min_symbol;
+    return a < b;
+}
+
+static void heap_push(int *heap, int *size, int node, const HuffNode *nodes) {
+    int pos = (*size)++;
+    while (pos > 0) {
+        int parent = (pos - 1) / 2;
+        if (!huff_less(nodes, node, heap[parent])) break;
+        heap[pos] = heap[parent];
+        pos = parent;
+    }
+    heap[pos] = node;
+}
+
+static int heap_pop(int *heap, int *size, const HuffNode *nodes) {
+    int result = heap[0];
+    int replacement = heap[--(*size)];
+    int pos = 0;
+    while (pos * 2 + 1 < *size) {
+        int child = pos * 2 + 1;
+        if (child + 1 < *size && huff_less(nodes, heap[child + 1], heap[child])) ++child;
+        if (!huff_less(nodes, heap[child], replacement)) break;
+        heap[pos] = heap[child];
+        pos = child;
+    }
+    if (*size) heap[pos] = replacement;
+    return result;
+}
+
+static int build_huffman_tree(const uint8_t *input, size_t input_size,
+                              HuffNode *nodes, int *node_count) {
+    uint32_t frequencies[256] = {0};
+    for (size_t i = 0; i < input_size; ++i) ++frequencies[input[i]];
+    int heap[512];
+    int heap_size = 0;
+    *node_count = 0;
+    for (int symbol = 0; symbol < 256; ++symbol) {
+        if (!frequencies[symbol]) continue;
+        int index = (*node_count)++;
+        nodes[index] = (HuffNode){frequencies[symbol], -1, -1, symbol, symbol};
+        heap_push(heap, &heap_size, index, nodes);
+    }
+    if (heap_size == 0) return -1;
+    while (heap_size > 1) {
+        int left = heap_pop(heap, &heap_size, nodes);
+        int right = heap_pop(heap, &heap_size, nodes);
+        int index = (*node_count)++;
+        int min_symbol = nodes[left].min_symbol < nodes[right].min_symbol
+            ? nodes[left].min_symbol : nodes[right].min_symbol;
+        nodes[index] = (HuffNode){nodes[left].frequency + nodes[right].frequency,
+                                 left, right, -1, min_symbol};
+        heap_push(heap, &heap_size, index, nodes);
+    }
+    return heap_pop(heap, &heap_size, nodes);
+}
+
+static void serialize_tree(const HuffNode *nodes, int node, BitWriter *writer) {
+    if (nodes[node].symbol >= 0) {
+        write_bit(writer, 1);
+        for (int bit = 7; bit >= 0; --bit) write_bit(writer, (unsigned)nodes[node].symbol >> bit);
+        return;
+    }
+    write_bit(writer, 0);
+    serialize_tree(nodes, nodes[node].left, writer);
+    serialize_tree(nodes, nodes[node].right, writer);
+}
+
+static void build_huffman_codes(const HuffNode *nodes, int node, uint8_t *path,
+                                uint16_t depth, uint8_t codes[256][256],
+                                uint16_t lengths[256]) {
+    if (nodes[node].symbol >= 0) {
+        int symbol = nodes[node].symbol;
+        lengths[symbol] = depth;
+        if (depth) memcpy(codes[symbol], path, depth);
+        return;
+    }
+    path[depth] = 0;
+    build_huffman_codes(nodes, nodes[node].left, path, (uint16_t)(depth + 1), codes, lengths);
+    path[depth] = 1;
+    build_huffman_codes(nodes, nodes[node].right, path, (uint16_t)(depth + 1), codes, lengths);
+}
+
+static Buffer huffman_encode(const uint8_t *input, size_t input_size) {
+    if (input_size > UINT32_MAX) fail("Huffman input too large");
+    Buffer output = {0};
+    append_u32le(&output, (uint32_t)input_size);
+    if (!input_size) {
+        append_u16le(&output, 0);
+        return output;
+    }
+    HuffNode nodes[511];
+    int node_count;
+    int root = build_huffman_tree(input, input_size, nodes, &node_count);
+    (void)node_count;
+    Buffer tree = {0};
+    BitWriter tree_writer = {&tree, 0, 0};
+    serialize_tree(nodes, root, &tree_writer);
+    finish_bits(&tree_writer);
+    if (tree.size > UINT16_MAX) fail("Huffman tree too large");
+    append_u16le(&output, (uint16_t)tree.size);
+    append_bytes(&output, tree.data, tree.size);
+
+    uint8_t codes[256][256] = {{0}};
+    uint16_t lengths[256] = {0};
+    uint8_t path[256];
+    build_huffman_codes(nodes, root, path, 0, codes, lengths);
+    BitWriter data_writer = {&output, 0, 0};
+    if (nodes[root].symbol < 0) {
+        for (size_t i = 0; i < input_size; ++i) {
+            uint8_t symbol = input[i];
+            for (uint16_t bit = 0; bit < lengths[symbol]; ++bit)
+                write_bit(&data_writer, codes[symbol][bit]);
+        }
+    }
+    finish_bits(&data_writer);
+    free(tree.data);
+    return output;
+}
+
+static int deserialize_tree(BitReader *reader, HuffNode *nodes, int *node_count,
+                            uint8_t seen[256]) {
+    if (*node_count >= 511) return -1;
+    int marker = read_bit(reader);
+    if (marker < 0) return -1;
+    int index = (*node_count)++;
+    if (marker) {
+        int symbol = 0;
+        for (int i = 0; i < 8; ++i) {
+            int bit = read_bit(reader);
+            if (bit < 0) return -1;
+            symbol = (symbol << 1) | bit;
+        }
+        if (seen[symbol]) return -1;
+        seen[symbol] = 1;
+        nodes[index] = (HuffNode){0, -1, -1, symbol, symbol};
+        return index;
+    }
+    int left = deserialize_tree(reader, nodes, node_count, seen);
+    int right = deserialize_tree(reader, nodes, node_count, seen);
+    if (left < 0 || right < 0) return -1;
+    nodes[index] = (HuffNode){0, left, right, -1, 0};
+    return index;
+}
+
+static Buffer huffman_decode(const uint8_t *input, size_t input_size) {
+    if (input_size < 6) fail("truncated Huffman header");
+    size_t decoded_size = read_u32le(input);
+    size_t tree_size = read_u16le(input + 4);
+    if (decoded_size > BLOCK_SIZE * 2u || tree_size == 0 || tree_size > input_size - 6)
+        fail("invalid Huffman header");
+    HuffNode nodes[511];
+    int node_count = 0;
+    uint8_t seen[256] = {0};
+    BitReader tree_reader = {input + 6, tree_size, 0, 0};
+    int root = deserialize_tree(&tree_reader, nodes, &node_count, seen);
+    if (root < 0) fail("invalid Huffman tree");
+    int padding;
+    while ((padding = read_bit(&tree_reader)) >= 0)
+        if (padding) fail("invalid Huffman tree padding");
+
+    Buffer output = {0};
+    reserve(&output, decoded_size ? decoded_size : 1);
+    BitReader data_reader = {input + 6 + tree_size, input_size - 6 - tree_size, 0, 0};
+    if (nodes[root].symbol >= 0) {
+        while (output.size < decoded_size) append_byte(&output, (uint8_t)nodes[root].symbol);
+    } else {
+        while (output.size < decoded_size) {
+            int node = root;
+            while (nodes[node].symbol < 0) {
+                int bit = read_bit(&data_reader);
+                if (bit < 0) fail("truncated Huffman data");
+                node = bit ? nodes[node].right : nodes[node].left;
+            }
+            append_byte(&output, (uint8_t)nodes[node].symbol);
+        }
+    }
+    while ((padding = read_bit(&data_reader)) >= 0)
+        if (padding) fail("invalid Huffman data padding");
+    return output;
+}
+
+static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy, int entropy) {
     Buffer output = {0};
     reserve(&output, HEADER_SIZE + input_size / 2 + 64);
     append_byte(&output, 'B'); append_byte(&output, 'I');
@@ -193,14 +437,22 @@ static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy
         if (decoded_size > BLOCK_SIZE) decoded_size = BLOCK_SIZE;
         Buffer trial = compress_buffer(input + pos, decoded_size, lazy);
         size_t payload_size = trial.size - HEADER_SIZE;
-        int use_lz = payload_size < decoded_size;
-        append_byte(&output, (uint8_t)use_lz);
+        Buffer huffman = {0};
+        if (entropy) huffman = huffman_encode(trial.data + HEADER_SIZE, payload_size);
+        uint8_t mode = 0;
+        size_t stored_size = decoded_size;
+        if (payload_size < stored_size) { mode = 1; stored_size = payload_size; }
+        if (entropy && huffman.size < stored_size) { mode = 2; stored_size = huffman.size; }
+        append_byte(&output, mode);
         append_u32le(&output, (uint32_t)decoded_size);
-        append_u32le(&output, (uint32_t)(use_lz ? payload_size : decoded_size));
-        if (use_lz)
+        append_u32le(&output, (uint32_t)stored_size);
+        if (mode == 1)
             append_bytes(&output, trial.data + HEADER_SIZE, payload_size);
+        else if (mode == 2)
+            append_bytes(&output, huffman.data, huffman.size);
         else
             append_bytes(&output, input + pos, decoded_size);
+        free(huffman.data);
         free(trial.data);
         pos += decoded_size;
     }
@@ -258,14 +510,18 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
         uint8_t mode = input[ip++];
         size_t block_decoded = read_u32le(input + ip); ip += 4;
         size_t block_stored = read_u32le(input + ip); ip += 4;
-        if (mode > 1 || block_decoded == 0 || block_decoded > BLOCK_SIZE ||
+        if (mode > 2 || block_decoded == 0 || block_decoded > BLOCK_SIZE ||
             block_decoded > decoded_size - output.size || block_stored > input_size - ip)
             fail("invalid block");
         if (mode == 0) {
             if (block_stored != block_decoded) fail("invalid raw block");
             append_bytes(&output, input + ip, block_stored);
-        } else {
+        } else if (mode == 1) {
             decompress_payload(&output, input + ip, block_stored, block_decoded);
+        } else {
+            Buffer token_stream = huffman_decode(input + ip, block_stored);
+            decompress_payload(&output, token_stream.data, token_stream.size, block_decoded);
+            free(token_stream.data);
         }
         ip += block_stored;
     }
@@ -297,17 +553,19 @@ static void write_file(const char *path, const Buffer *buffer) {
 
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|d INPUT OUTPUT\n");
-        fprintf(stderr, "  c/cl: v1 greedy/lazy; cb/clb: v2 blocked greedy/lazy; d: decompress\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c/cl: v1; cb/clb: v2 blocked; cbh/clbh: v2 + Huffman; d: decompress\n");
         return 2;
     }
-    int is_greedy = strcmp(argv[1], "c") == 0 || strcmp(argv[1], "cb") == 0;
-    int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0;
-    int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0;
+    int is_greedy = strcmp(argv[1], "c") == 0 || strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "cbh") == 0;
+    int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0 || strcmp(argv[1], "clbh") == 0;
+    int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
+                     strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0;
+    int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0;
     int is_decode = strcmp(argv[1], "d") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|d INPUT OUTPUT\n");
-        fprintf(stderr, "  c/cl: v1 greedy/lazy; cb/clb: v2 blocked greedy/lazy; d: decompress\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c/cl: v1; cb/clb: v2 blocked; cbh/clbh: v2 + Huffman; d: decompress\n");
         return 2;
     }
     Buffer input = read_file(argv[2]);
@@ -315,7 +573,7 @@ int main(int argc, char **argv) {
     if (is_decode)
         output = decompress_buffer(input.data, input.size);
     else if (is_blocked)
-        output = compress_blocked(input.data, input.size, is_lazy);
+        output = compress_blocked(input.data, input.size, is_lazy, is_entropy);
     else
         output = compress_buffer(input.data, input.size, is_lazy);
     write_file(argv[3], &output);
