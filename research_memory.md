@@ -61,6 +61,12 @@
   middle, and end. A 1.2x gate reduces transformed parses from 52 to 36 while
   retaining all 34 winning dev blocks and identical compressed streams. Five-
   repeat encode throughput improves 15.261% to 20.96 MB/s.
+- `EXP-0017` retains optional decoder `dwork`, which builds the 256-entry
+  Huffman prefix table only when encoded-bit work exceeds one residual edge per
+  symbol plus 2,048 worst-case construction edges. Two reversed-order,
+  30-repeat in-process runs improve identical-stream dev decode by 3.038% and
+  3.746%, and public research by 1.217% and 0.622%. Size, format, encoder,
+  binary size, and process-level RSS are unchanged.
 - Routine candidate evaluation now preserves the original frozen dev corpus and
   adds a separately addressable 13,787,888-byte public research suite: 13
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
@@ -106,6 +112,8 @@
   decode 1.736% on dev and 0.712% on public research, both below the established
   process-level noise threshold. Direction was broad (21/26 and 13/16 files),
   but several files still regressed and the policy was reverted without tuning.
+  This was a measurement rejection, not an algorithmic failure; unchanged
+  `EXP-0017` later retained it after startup-free repeated evidence.
 
 ## Dataset-specific observations
 
@@ -380,7 +388,7 @@ Ranking after `EXP-0015` (first item rejected as inconclusive by `EXP-0016`):
 5. Joint length/distance classes or conditional models; do not retry plain
    first-order distance deltas without new evidence.
 
-Current ranking after `EXP-0016`:
+Ranking after `EXP-0016` (first item completed by BENCH-0002 and `EXP-0017`):
 
 1. Add an in-process benchmark/library entry point before more sub-3% speed
    policies; process-per-file timing cannot resolve them reliably.
@@ -392,6 +400,19 @@ Current ranking after `EXP-0016`:
    first-order distance deltas without new evidence.
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
+
+Current ranking after `EXP-0017`:
+
+1. Parse decisions based on actual split-entropy costs over a bounded horizon,
+   explicitly avoiding the rejected raw 25/33-bit proxy.
+2. Block-level entropy-model selection that shares parsed tokens and exact-costs
+   every representation, prioritizing broad public-corpus gains.
+3. Joint length/distance classes or conditional models; do not retry plain
+   first-order distance deltas without new evidence.
+4. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+5. Promote `dwork` to the default decoder only after a periodic process audit;
+   keep explicit `d` meanwhile for historical comparability.
 
 ## Interactions between components
 
@@ -456,6 +477,10 @@ Current ranking after `EXP-0016`:
   useful, but the current harness cannot distinguish its 0.7–1.7% aggregate
   gain from startup/timing noise. Do not tune or revive it until an in-process
   decoder benchmark exists.
+- `EXP-0017` demonstrates why measurement infrastructure is part of algorithm
+  research: the unchanged gate was inconclusive under process timing but showed
+  repeatable positive steady-state gains after startup removal. Reversing codec
+  order preserved the sign on both suites, avoiding a threshold sweep.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -502,6 +527,10 @@ Current ranking after `EXP-0016`:
 - `EXP-0016` is a direct stopping rule for micro-speed work: five repeats on
   identical streams showed broad but sub-3% gains that remain below harness
   resolution. Build the in-process benchmark before another lookup threshold.
+- In-process output uses picosecond decimal serialization so sub-microsecond
+  tiny-file medians do not round to zero. It remains complementary: use process
+  runs for RSS/startup/external comparisons and in-process runs for steady-state
+  codec deltas.
 - The new in-process baseline exposes the prefix lookup's steady-state effect:
   versus `dslow`, decode is 47.7% faster on dev (277.29 vs 187.73 MB/s) and
   68.3% faster on public research (196.73 vs 116.86 MB/s). The earlier process
@@ -558,8 +587,8 @@ Current ranking after `EXP-0016`:
   rejected top-two-bit split without a mechanism that addresses table/compute
   cost and the pseudo-text concentration.
 - Huffman lookup should be enabled by estimated decoded bit work, not decoded
-  symbol count alone, but EXP-0016's small apparent gain is unresolved until
-  startup-free benchmarking exists.
+  symbol count alone. `EXP-0017` resolves the earlier ambiguity with repeated
+  startup-free evidence and retains the work gate as optional `dwork`.
 
 ## Initial development-corpus external Pareto frontier (2026-08-16)
 
