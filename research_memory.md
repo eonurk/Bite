@@ -16,6 +16,11 @@
   76.5 MB/s decode, 9.99 MB encoder peak RSS, and 3.90 MB decoder peak RSS.
 - The strongest relative Bite results are highly repetitive generated text,
   source, JSON, and XML. Despite its simple coding, it beats LZ4's size there.
+- `EXP-0001` one-token lazy parsing is retained as optional mode `cl`. It
+  reduces total size 0.937% with no per-file size regression, while reducing
+  encode throughput 18.99%. Decoder format, decode speed, and memory are
+  unchanged. It is useful as a higher-compression research baseline but does
+  not create an external Pareto point.
 
 ## What consistently fails
 
@@ -76,7 +81,14 @@ Ranked by expected information gain after `BASE-0001`:
 
 ## Interactions between components
 
-- No component interactions measured yet.
+- Lazy parsing interacts strongly with structured/repetitive text: size changes
+  were Canterbury -2.261%, JSON -3.174%, source -3.046%, XML -4.555%, and
+  generated text -11.184%. It had no effect on random, raw image, scientific,
+  or small fixtures because those inputs present few qualifying match choices.
+- The extra match search costs encode throughput even when it finds no useful
+  alternative. `EXP-0001` throughput fell 18.99% overall, suggesting a future
+  lazy policy should cheaply gate lookahead by current match length or local
+  match density.
 
 ## Known benchmark artifacts
 
@@ -96,15 +108,14 @@ Ranked by expected information gain after `BASE-0001`:
 
 ## Open hypotheses
 
-- A one-byte lazy lookahead will reduce total size by avoiding short matches
-  that conceal longer matches at the next byte, with a measurable but bounded
-  encoder-speed cost and no decoder cost.
 - Raw block fallback can turn the current 12.5% worst-case expansion into small
   bounded framing overhead.
 - Literal entropy coding should close more of the Canterbury gap than deeper
   match search alone.
 - Byte-plane structure explains the unusually large xz advantage on generated
   floating-point and RGB data.
+- Gating lazy lookahead to shorter current matches may retain most of its size
+  gain while recovering enough encoder speed to approach a useful frontier.
 
 ## Initial external Pareto frontier (2026-08-16)
 
