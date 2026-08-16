@@ -30,6 +30,11 @@
   in `cbh`/`clbh` high-compression modes. Blocked lazy size falls 9.606% to
   4,000,675 bytes (3.563 bits/byte), with encode throughput 31.74 MB/s and decode
   55.79 MB/s. Exact block selection guarantees no stored-size regression.
+- `EXP-0005` linked-history blocks are retained in `cblink`/`clblink`. Seeding
+  each block with one 65,535-byte prior window reduces independent-lazy size
+  2.286% to 4,324,638 bytes, keeps match state bounded, and leaves decode speed
+  unchanged. Encode throughput falls 20.386% and RSS rises 4.734% versus
+  independent lazy because prior history is re-indexed for each block.
 
 ## What consistently fails
 
@@ -82,6 +87,8 @@
 4. V2 independent blocks lose cross-boundary history. Size regresses 7.106% on
    Canterbury, 7.220% on JSON, 9.101% on source, and 9.164% on repetitive text
    relative to v1 lazy, despite improving total heterogeneous-corpus size.
+   `EXP-0005` linked mode recovers nearly all of this ratio, but its repeated
+   history indexing is slower than both independent v2 and whole-file v1.
 5. The experimental Huffman decoder walks one tree edge per bit. Its 20.754%
    decode-throughput cost prevents the size gain from creating an external
    Pareto point; table-based or canonical decoding is an optimization target.
@@ -132,7 +139,7 @@ Ranking after `EXP-0003` (`EXP-0004` now rejected):
    lookahead.
 5. `EXP-0005` reversible stride/byte-plane transforms.
 
-Current ranking after `EXP-0004`:
+Ranking after `EXP-0004` (first item completed by `EXP-0005`):
 
 1. Linked-history v2 blocks to recover cross-boundary compression while keeping
    raw fallback and bounded match state.
@@ -142,6 +149,16 @@ Current ranking after `EXP-0004`:
 4. `EXP-0005` reversible stride/byte-plane transforms.
 5. Faster Huffman decoding through canonical/table lookup without changing the
    probability model.
+
+Current ranking after `EXP-0005`:
+
+1. Combine linked-history parsing with exact-selected static Huffman coding.
+   This directly tests whether the two strongest size mechanisms compound.
+2. Split entropy alphabets/models for token controls, literals, distances, and
+   lengths.
+3. Gated lazy parsing to retain most ratio gain with fewer lookahead searches.
+4. Reversible stride/byte-plane transforms for scientific and raw image blocks.
+5. Faster Huffman decoding through canonical/table lookup.
 
 ## Interactions between components
 
@@ -170,6 +187,13 @@ Current ranking after `EXP-0004`:
   computation regressions: generating two complete parses is too expensive for
   a representation chosen on only a few blocks. Future alternative token modes
   should share one parsed token sequence or use a cheap pre-decision.
+- Linked history and independent blocks expose a clean ratio/cache tradeoff.
+  Linked size improves 6.586% on Canterbury, 6.649% JSON, 8.233% source, 8.052%
+  text, and 4.142% XML versus independent lazy, with no category regression.
+  It is only 0.052–0.375% larger than v1 lazy on those structured categories.
+- Re-indexing the prior 65,535 bytes costs 20.386% encode throughput. A future
+  streaming/circular match finder should preserve chains across block headers
+  rather than rebuilding history.
 
 ## Known benchmark artifacts
 
@@ -185,6 +209,9 @@ Current ranking after `EXP-0004`:
   screening, then 3–5 repeat validation only for promising candidates. Reuse a
   cached full external audit while tool, platform, corpus hashes, compiler, and
   benchmark method remain unchanged; refresh periodically or after changes.
+- `EXP-0005` validated this workflow: the two-mode screen took 6.9 seconds and
+  the three-repeat validation 6.7 seconds while 13 external codec summaries
+  were fingerprint-validated from `EXP-0004`. Fresh timing remained serial.
 - The generated corpus is deterministic and its manifest is hashed. Canterbury
   is pinned to archive SHA-256
   `f140e8a5b73d3f53198555a63bfb827889394a42f20825df33c810c3d5e3f8fb`.
@@ -197,10 +224,10 @@ Current ranking after `EXP-0004`:
   floating-point and RGB data.
 - Gating lazy lookahead to shorter current matches may retain most of its size
   gain while recovering enough encoder speed to approach a useful frontier.
-- A one-block linked history may recover most v2 compressible-data regression
-  without returning to v1's per-input predecessor allocation.
 - Separating literal and match-field entropy streams may outperform the current
   single order-0 token-byte alphabet without a more complex probability model.
+- Huffman coding of linked-history token payloads may combine the 2.286% linked
+  gain with the 9.606% entropy gain and approach or beat gzip-1 size.
 
 ## Initial external Pareto frontier (2026-08-16)
 
