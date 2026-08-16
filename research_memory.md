@@ -33,7 +33,11 @@
 
 ## What consistently fails
 
-- No experiments rejected yet.
+- `EXP-0004` two-byte nearby/short matches with four-byte escapes was rejected.
+  Exact selection improved aggregate size 1.161%, but computing a second parse
+  cut encode throughput 37.960%, decoder throughput fell 7.119%, and RSS rose
+  5.900%. Almost all size benefit came from the generated pseudo-executable;
+  only four small Canterbury files changed. The implementation was reverted.
 
 ## Dataset-specific observations
 
@@ -116,7 +120,7 @@ Ranking after `EXP-0002` (first item now completed):
 5. `EXP-0005` — sampled reversible byte-plane/stride transforms for scientific
   and raw image blocks.
 
-Current ranking after `EXP-0003`:
+Ranking after `EXP-0003` (`EXP-0004` now rejected):
 
 1. `EXP-0004` — variable match coding with cheap forms for short distances and
    common lengths. Fixed three-byte matches remain a direct format inefficiency.
@@ -127,6 +131,17 @@ Current ranking after `EXP-0003`:
 4. Gated lazy parsing to recover the 13–19% encode cost of unconditional
    lookahead.
 5. `EXP-0005` reversible stride/byte-plane transforms.
+
+Current ranking after `EXP-0004`:
+
+1. Linked-history v2 blocks to recover cross-boundary compression while keeping
+   raw fallback and bounded match state.
+2. Split entropy alphabets/models for token controls, literals, distances, and
+   lengths.
+3. Gated lazy parsing to retain most size benefit with fewer lookahead searches.
+4. `EXP-0005` reversible stride/byte-plane transforms.
+5. Faster Huffman decoding through canonical/table lookup without changing the
+   probability model.
 
 ## Interactions between components
 
@@ -151,6 +166,10 @@ Current ranking after `EXP-0003`:
 - Huffman compounds the lazy-parser gain but costs 12.902% encode and 20.754%
   decode throughput versus v2 lazy. It ends only 1.509% larger than gzip-1, but
   gzip-1 is still faster in both directions on this process-per-file benchmark.
+- `EXP-0004` shows that exact block selection prevents size regressions but not
+  computation regressions: generating two complete parses is too expensive for
+  a representation chosen on only a few blocks. Future alternative token modes
+  should share one parsed token sequence or use a cheap pre-decision.
 
 ## Known benchmark artifacts
 
@@ -162,6 +181,10 @@ Current ranking after `EXP-0003`:
 - Per-file medians are summed, so aggregate time weights startup once per file.
   A later in-process/library benchmark is needed before making startup or
   steady-state speed claims.
+- Routine experiments must use staged evaluation: one-repeat new-mode/parent
+  screening, then 3–5 repeat validation only for promising candidates. Reuse a
+  cached full external audit while tool, platform, corpus hashes, compiler, and
+  benchmark method remain unchanged; refresh periodically or after changes.
 - The generated corpus is deterministic and its manifest is hashed. Canterbury
   is pinned to archive SHA-256
   `f140e8a5b73d3f53198555a63bfb827889394a42f20825df33c810c3d5e3f8fb`.
@@ -176,9 +199,6 @@ Current ranking after `EXP-0003`:
   gain while recovering enough encoder speed to approach a useful frontier.
 - A one-block linked history may recover most v2 compressible-data regression
   without returning to v1's per-input predecessor allocation.
-- Common short-distance matches should cost fewer than the current fixed
-  three-byte `(offset,length)` representation; an escape form can preserve the
-  full 64 KiB/259-byte range.
 - Separating literal and match-field entropy streams may outperform the current
   single order-0 token-byte alphabet without a more complex probability model.
 
