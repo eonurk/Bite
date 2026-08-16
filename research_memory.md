@@ -102,6 +102,14 @@
   observed files. Three-repeat encode throughput improves 15.709% on dev and
   25.347% on public research, for RSS changes of +0.746% and +3.777%. Size,
   format, and decode behavior are exact controls.
+- `EXP-0028` retains new speed-frontier mode `clblinksopt2dfsb`. In the final
+  costed-distance DP it scores each chain candidate once into one of eight
+  eligible-length buckets, then suffix-propagates the lowest cost and nearest-
+  offset tie break instead of rescanning every candidate up to eight times.
+  All 42 dev+research streams are byte-identical to EXP-0023. Exact-commit,
+  three-repeat encode throughput improves 15.635% on dev and 8.247% on public
+  research; all 16 public files are faster, dev RSS and the 92,552-byte binary
+  are unchanged, and decoder behavior is an exact control.
 - Routine candidate evaluation now preserves the original frozen dev corpus and
   adds a separately addressable 13,787,888-byte public research suite: 13
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
@@ -257,6 +265,8 @@
    memory cost. `EXP-0021` further shows that using only the longest match's
    distance leaves broad ratio on the table; length-specific entropy-costed
    distances help, but exhaustive chain evaluation is too slow and memory-heavy.
+   `EXP-0028` removes repeated per-length distance-cost comparisons exactly,
+   recovering 8-16% throughput; byte matching and three full DPs remain costly.
 3. V1 stores a four-byte predecessor per input byte and has a 2 GiB limit. V2
    bounds match-state allocation to 64 KiB and cuts measured encoder RSS by
    44.8%, but file I/O and final output are still whole-file buffers rather than
@@ -628,6 +638,19 @@ Ranking after `EXP-0027`:
 5. Reconsider conditional distance coding only with a representation that
    avoids extra Huffman trees and first demonstrates broad validation signal.
 
+Ranking after `EXP-0028`:
+
+1. Profile the remaining DP arithmetic, candidate byte comparison, and block
+   allocation hot spots before choosing the next identical-output acceleration.
+2. Revisit literal context only with shared/cheap tables that directly address
+   EXP-0011's serialization and pseudo-text concentration failures.
+3. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+4. Explore whether shared per-candidate match lengths can remove repeated byte
+   comparisons without storing an unbounded match matrix.
+5. Reconsider conditional distance coding only with a representation that
+   avoids extra Huffman trees and first demonstrates broad validation signal.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -746,6 +769,11 @@ Ranking after `EXP-0027`:
   tree reconstructions, yet end-to-end encode improves only about 1% on both
   suites. The remaining maximum-mode time is therefore dominated by the three
   DPs and final costed candidate comparisons, not entropy-stat reconstruction.
+- `EXP-0028` confirms that the repeated comparisons inside costed distance
+  selection were material: one score per candidate plus an exact suffix minimum
+  recovers 15.635% dev and 8.247% public-research encode throughput with every
+  output byte unchanged. The gain is broad rather than fixture-specific, while
+  the larger dev benefit shows candidate multiplicity varies by data class.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -885,8 +913,9 @@ Ranking after `EXP-0027`:
   retaining that selection cheaply, not adding more serialized trees without
   new cross-corpus evidence.
 - EXP-0022 resolves the storage half of that problem without changing output;
-  EXP-0023 then shares the invariant match structure across model iterations,
-  recovering broad speed. Costed candidate comparison itself remains open.
+  EXP-0023 shares the invariant match structure across model iterations, and
+  EXP-0028 removes redundant per-length distance scoring with exact buckets.
+  Repeated candidate byte matching and the three DPs remain open compute costs.
 - Literal context may still be useful only if its coding tables are shared or
   much cheaper than four independent serialized Huffman trees; do not retry the
   rejected top-two-bit split without a mechanism that addresses table/compute
