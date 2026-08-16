@@ -89,6 +89,11 @@
   on the research suite, regressed 12 of 16 files, and reduced encode throughput
   6.723%. A one-step 25-bit match versus 33-bit literal-plus-match proxy does
   not represent downstream entropy cost or parsing consequences.
+- `EXP-0015` modulo deltas between consecutive 16-bit match distances was
+  rejected. Its exact-selected representation won zero blocks across all 42
+  dev+research files, so sizes were unchanged, while generating five extra
+  Huffman streams reduced encode throughput 8.870% on dev and 6.547% on the
+  public suite. Simple first-order distance recency is not useful here.
 
 ## Dataset-specific observations
 
@@ -141,8 +146,9 @@
    `EXP-0003` adds order-0 entropy coding, but the model mixes control, match,
    distance, length, and literal bytes in one alphabet. `EXP-0007` fixes field
    mixing in mode 6. `EXP-0011` shows that adding four independent static
-   literal trees for coarse byte context costs much more than its small gain;
-   distance recency and length/distance correlation remain unmodeled.
+   literal trees for coarse byte context costs much more than its small gain.
+   `EXP-0015` rules out simple modulo distance deltas; length/distance
+   correlation and distance classes remain unmodeled.
 2. Greedy parsing chooses the locally longest match and every match costs three
    bytes regardless of distance/length. It cannot trade a literal or short
    match for a materially better next match. Bounded single-hash chains also
@@ -334,7 +340,8 @@ Ranking after `EXP-0013` and the first Silesia audit (first item rejected by
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
-Current ranking after `EXP-0014` and the public research-suite addition:
+Ranking after `EXP-0014` and the public research-suite addition (first item
+rejected by `EXP-0015`):
 
 1. Distance recency or length/distance correlation modeling within the split
    token representation, with complete model costs counted and dual-corpus
@@ -347,6 +354,19 @@ Current ranking after `EXP-0014` and the public research-suite addition:
    after profiling the rejected 64-bit design.
 5. Block-level entropy-model selection that shares parsed tokens and exact-costs
    every representation, prioritizing broad public-corpus gains.
+
+Current ranking after `EXP-0015`:
+
+1. Adaptive Huffman lookup eligibility based on stream length and estimated
+   tree-walk work; require identical-stream speed evidence on both suites.
+2. Parse decisions based on actual split-entropy costs over a bounded horizon,
+   explicitly avoiding the rejected raw 25/33-bit proxy.
+3. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+4. Block-level entropy-model selection that shares parsed tokens and exact-costs
+   every representation, prioritizing broad public-corpus gains.
+5. Joint length/distance classes or conditional models; do not retry plain
+   first-order distance deltas without new evidence.
 
 ## Interactions between components
 
@@ -403,6 +423,10 @@ Current ranking after `EXP-0014` and the public research-suite addition:
   Its stricter token-density rule slightly helped generated XML/JSON and public
   E. coli, but generally hurt public books/text. Parser decisions must account
   for more than immediate raw token count.
+- `EXP-0015` shows that representation alternatives must cheaply prequalify or
+  share entropy work. Re-encoding all five streams costs 6.5–8.9% even when
+  exact selection rejects every block, repeating the compute lesson from
+  EXP-0004 and EXP-0011.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -491,6 +515,8 @@ Current ranking after `EXP-0014` and the public research-suite addition:
   would be needed before reviving that claim.
 - A parser using actual split-stream code costs over a bounded horizon may
   improve on both longest-match lazy parsing and the rejected raw-token proxy.
+- Distance modeling may need joint length/distance classes or recency ranks;
+  plain modulo deltas between consecutive distances won no tested block.
 - Literal context may still be useful only if its coding tables are shared or
   much cheaper than four independent serialized Huffman trees; do not retry the
   rejected top-two-bit split without a mechanism that addresses table/compute
