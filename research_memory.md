@@ -56,6 +56,11 @@
   decoded symbols, retaining tree fallback and `dslow` as a reproducible control.
   On identical mode-7 streams, five-repeat decode throughput improves 10.837%
   to 64.04 MB/s with unchanged size, encode speed, binary size, and RSS.
+- `EXP-0013` retains mode 7 through `clblinksdf` but replaces nine full-block
+  concentration scans with at most 4,095 sampled bytes from the block's start,
+  middle, and end. A 1.2x gate reduces transformed parses from 52 to 36 while
+  retaining all 34 winning dev blocks and identical compressed streams. Five-
+  repeat encode throughput improves 15.261% to 20.96 MB/s.
 
 ## What consistently fails
 
@@ -100,6 +105,13 @@
   five Canterbury files improved by 992 bytes total, while generated
   `pseudo_text.bin` improved 5,088 bytes and 17 of 26 files were unchanged.
   Multiple Huffman trees cost too much for this small, concentrated gain.
+- The generated 15-file hold-out is not independent: 12 files, representing
+  4,788,364 of 6,172,098 bytes, are byte-identical to development fixtures. Its
+  favorable aggregate is only a deterministic seed-stability check.
+- On the public 211,938,580-byte Silesia corpus, frozen EXP-0010 produces
+  67,070,271 bytes at 19.06 MB/s encode and 151.80 MB/s decode. It is dominated
+  in both size and speed by zstd-3 (66,216,569 bytes), Brotli-6 (58,441,670),
+  and xz-1 (58,717,040). The development frontier does not generalize.
 - Huffman token coding is broadly effective on compressible categories:
   Canterbury -22.057%, pseudo-executable -28.925%, JSON -13.918%, source
   -20.906%, repetitive text -27.784%, and XML -21.684% versus v2 lazy. It has
@@ -147,7 +159,8 @@
 8. The delta prefilter scans up to eight transformed histograms and sometimes
    runs an extra parse. Encode throughput falls 20.374% even on the aggregate;
    mode selection protects size but not compute. Its apparent external frontier
-   point is not yet robust beyond generated raw/scientific fixtures.
+   point does not reproduce on Silesia. `EXP-0013` removes much of the selector
+   cost, but the underlying ratio remains dependent on synthetic structure.
 
 ## Promising unexplored directions
 
@@ -277,7 +290,7 @@ Ranking after `EXP-0011` (first item completed by rejected `EXP-0012`):
 5. Distance recency or length/distance correlation modeling within the split
    token representation, with complete model costs counted.
 
-Current ranking after `EXP-0012`:
+Ranking after `EXP-0012` (first item completed by retained `EXP-0013`):
 
 1. Cheaper sampled transform prefiltering to avoid eight full-block histogram
    passes and unprofitable transformed parses.
@@ -289,6 +302,19 @@ Current ranking after `EXP-0012`:
    token representation, with complete model costs counted.
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, but
    only after profiling confirms the wider head table caused `EXP-0012`.
+
+Current ranking after `EXP-0013` and the first Silesia audit:
+
+1. Cost-aware lazy gating using token/entropy estimates instead of a fixed
+   match-length threshold, targeting a broadly useful speed/ratio point.
+2. Distance recency or length/distance correlation modeling within the split
+   token representation, with complete model costs counted.
+3. Adaptive Huffman lookup eligibility based on stream length and estimated
+   tree-walk work.
+4. Parse decisions based on actual split-entropy bit costs rather than longest
+   match length, starting with a bounded one-step cost comparison.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
 
 ## Interactions between components
 
@@ -359,6 +385,10 @@ Current ranking after `EXP-0012`:
   `EXP-0012`, avoiding repeated insertion was insufficient to pay for 64-bit
   heads and circular predecessor lookup; compact state is a prerequisite for
   reconsidering persistence.
+- The delta proxy was highly separable on the development corpus: 52 blocks had
+  any concentration improvement, only 34 transformed representations won, and
+  every winner exceeded a 4.2x concentration ratio. `EXP-0013`'s sampled 1.2x
+  gate avoids 16 discarded parses without changing any selected representation.
 
 ## Known benchmark artifacts
 
@@ -398,6 +428,14 @@ Current ranking after `EXP-0012`:
 - The generated RGB gradient is a known favorable artifact for fixed-stride
   transforms. Do not present the `EXP-0009` development frontier as a general
   compressor result until public raw/scientific or held-out evidence confirms it.
+- The generated hold-out is contaminated by 12/15 byte-identical fixtures and
+  must not be cited as independent generalization evidence. It remains useful
+  only for seed/reproducibility stability.
+- Silesia audit `results/holdout-silesia-exp0010/` is the first meaningful
+  distribution-shift test. It freezes candidate commit `a239a2f`, pins corpus
+  commit/archive hash, verifies all round trips, and shows Bite dominated by
+  zstd-3, Brotli-6, and xz-1. Silesia is now observed and must not be tuned on
+  or described as untouched held-out data in future work.
 - The generated corpus is deterministic and its manifest is hashed. Canterbury
   is pinned to archive SHA-256
   `f140e8a5b73d3f53198555a63bfb827889394a42f20825df33c810c3d5e3f8fb`.
@@ -407,8 +445,9 @@ Current ranking after `EXP-0012`:
 ## Open hypotheses
 
 - Fixed-stride delta structure explains much of the previous xz advantage on
-  generated floating-point and RGB data; generalization beyond these fixtures
-  remains open.
+  generated floating-point and RGB data, but its apparent Pareto benefit fails
+  to generalize to Silesia. Other genuinely independent raw/scientific evidence
+  would be needed before reviving that claim.
 - A cost-aware lazy gate may avoid the generated-source ratio regression of the
   fixed 32-byte policy while retaining its broad encode-speed gain.
 - Literal context may still be useful only if its coding tables are shared or
@@ -418,7 +457,7 @@ Current ranking after `EXP-0012`:
 - Huffman lookup should be enabled by estimated decoded bit work, not decoded
   symbol count alone, to avoid table-build regressions on shallow/skewed trees.
 
-## Initial external Pareto frontier (2026-08-16)
+## Initial development-corpus external Pareto frontier (2026-08-16)
 
 All points use 26 files, three repetitions, summed per-file median times. The
 encode size/speed frontier is: xz-6 (2,242,316 B, 5.67 MB/s), xz-1 (2,853,460 B,
@@ -431,3 +470,6 @@ The size/decode-speed frontier is: xz-9 (2,242,316 B, 39.40 MB/s), Brotli-11
 (3,500,213 B, 63.73 MB/s), gzip-1 (3,941,192 B, 70.64 MB/s), LZ4 (4,676,048 B,
 72.69 MB/s), and Bite (4,678,316 B, 76.51 MB/s). The small Bite/LZ4 decode
 difference needs an in-process benchmark before it is considered meaningful.
+These are valid measurements for the frozen development corpus, not evidence of
+general performance. The later Silesia audit shows EXP-0010 dominated by
+zstd-3, Brotli-6, and xz-1 and supersedes any broad Pareto interpretation.
