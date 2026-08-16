@@ -26,6 +26,10 @@
   80.07 MB/s decode, and 5.51 MB encoder peak RSS. Relative to v1 lazy this is
   4.503% smaller, 24.273% faster to encode, 3.549% faster to decode, and 44.828%
   lower encoder RSS. The v1 modes remain useful where cross-block matches matter.
+- `EXP-0003` static Huffman coding over complete LZ token payloads is retained
+  in `cbh`/`clbh` high-compression modes. Blocked lazy size falls 9.606% to
+  4,000,675 bytes (3.563 bits/byte), with encode throughput 31.74 MB/s and decode
+  55.79 MB/s. Exact block selection guarantees no stored-size regression.
 
 ## What consistently fails
 
@@ -48,15 +52,20 @@
 - Generated pseudo-executable data is 4.340 bits/byte in Bite versus 4.003 in
   LZ4, 1.966 in zstd-3, and 0.392 in xz-6. A 64 KiB window and fixed match
   representation miss strong long/structured repetition.
+- Huffman token coding is broadly effective on compressible categories:
+  Canterbury -22.057%, pseudo-executable -28.925%, JSON -13.918%, source
+  -20.906%, repetitive text -27.784%, and XML -21.684% versus v2 lazy. It has
+  no size effect on raw-selected random/scientific/RGB blocks or small files.
 - Process startup dominates the six generated small files: their aggregate
   Bite throughput is only about 0.23 MB/s. Size overhead is 16-byte header plus
   token control bytes.
 
 ## Architecture weaknesses
 
-1. V1 has no raw-block fallback and neither format has an entropy coder. V2
-   fixes incompressible expansion, but low-order literal bias remains entirely
-   unused in compressed blocks.
+1. V1 has no raw-block fallback. V2 fixes incompressible expansion and
+   `EXP-0003` adds order-0 entropy coding, but the model mixes control, match,
+   distance, length, and literal bytes in one alphabet. It cannot exploit
+   context-dependent literal probabilities or token-field-specific statistics.
 2. Greedy parsing chooses the locally longest match and every match costs three
    bytes regardless of distance/length. It cannot trade a literal or short
    match for a materially better next match. Bounded single-hash chains also
@@ -69,6 +78,9 @@
 4. V2 independent blocks lose cross-boundary history. Size regresses 7.106% on
    Canterbury, 7.220% on JSON, 9.101% on source, and 9.164% on repetitive text
    relative to v1 lazy, despite improving total heterogeneous-corpus size.
+5. The experimental Huffman decoder walks one tree edge per bit. Its 20.754%
+   decode-throughput cost prevents the size gain from creating an external
+   Pareto point; table-based or canonical decoding is an optimization target.
 
 ## Promising unexplored directions
 
@@ -90,7 +102,7 @@ Completed initial ranking:
    sampled estimated cost per block. This targets scientific and raw image data
    while remaining data-driven and general-purpose.
 
-Current ranking after `EXP-0002`:
+Ranking after `EXP-0002` (first item now completed):
 
 1. `EXP-0003` — block-static literal entropy coding with explicit table cost
    and raw fallback. The strongest remaining evidence is the large Canterbury
@@ -102,7 +114,19 @@ Current ranking after `EXP-0002`:
 4. Gated lazy parsing — avoid the `EXP-0001` extra search on long current matches
    or low-match-density data.
 5. `EXP-0005` — sampled reversible byte-plane/stride transforms for scientific
-   and raw image blocks.
+  and raw image blocks.
+
+Current ranking after `EXP-0003`:
+
+1. `EXP-0004` — variable match coding with cheap forms for short distances and
+   common lengths. Fixed three-byte matches remain a direct format inefficiency.
+2. Linked-history v2 blocks to recover the 4–9% cross-boundary loss while
+   preserving raw fallback and bounded state.
+3. Split entropy alphabets/models for control bytes, literals, distances, and
+   lengths, retaining exact mode-cost selection.
+4. Gated lazy parsing to recover the 13–19% encode cost of unconditional
+   lookahead.
+5. `EXP-0005` reversible stride/byte-plane transforms.
 
 ## Interactions between components
 
@@ -121,6 +145,12 @@ Current ranking after `EXP-0002`:
 - Raw fallback was selected for 42 of 152 blocks (2,504,057 decoded bytes); 110
   LZ blocks covered the remaining 6,478,825 bytes. Selection cleanly separated
   the generated random/scientific/RGB categories without type-specific logic.
+- Huffman was selected for 108 of the 110 previously LZ-coded blocks; only two
+  small-file blocks (5,120 decoded bytes) retained plain LZ. Counting the
+  serialized tree prevented regressions on all files without heuristic cutoffs.
+- Huffman compounds the lazy-parser gain but costs 12.902% encode and 20.754%
+  decode throughput versus v2 lazy. It ends only 1.509% larger than gzip-1, but
+  gzip-1 is still faster in both directions on this process-per-file benchmark.
 
 ## Known benchmark artifacts
 
@@ -140,14 +170,17 @@ Current ranking after `EXP-0002`:
 
 ## Open hypotheses
 
-- Literal entropy coding should close more of the Canterbury gap than deeper
-  match search alone.
 - Byte-plane structure explains the unusually large xz advantage on generated
   floating-point and RGB data.
 - Gating lazy lookahead to shorter current matches may retain most of its size
   gain while recovering enough encoder speed to approach a useful frontier.
 - A one-block linked history may recover most v2 compressible-data regression
   without returning to v1's per-input predecessor allocation.
+- Common short-distance matches should cost fewer than the current fixed
+  three-byte `(offset,length)` representation; an escape form can preserve the
+  full 64 KiB/259-byte range.
+- Separating literal and match-field entropy streams may outperform the current
+  single order-0 token-byte alphabet without a more complex probability model.
 
 ## Initial external Pareto frontier (2026-08-16)
 
