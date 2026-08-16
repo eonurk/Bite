@@ -15,6 +15,7 @@ CODECS = {
     "bite-link-split-delta-filter": ("clblinksdf", "d"),
     "bite-link-split-optimal": ("clblinksopt", "d"),
     "bite-link-split-optimal-iterated": ("clblinksopt2", "d"),
+    "bite-link-split-optimal-distances": ("clblinksopt2d", "d"),
     "bite-link-split-delta-workdec": ("clblinksdf", "dwork"),
     "bite-link-split-delta-slowdec": ("clblinksdf", "dslow"),
 }

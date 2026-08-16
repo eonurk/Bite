@@ -53,6 +53,8 @@ Mode `clblinksopt` exact-selects a second mode-6 token stream from a bounded
 dynamic parser using the parent block's split-Huffman field costs.
 Mode `clblinksopt2` repeats cost estimation and parsing once, exact-selecting
 the second optimized stream against the first.
+Mode `clblinksopt2d` additionally considers, for each candidate length, the
+lowest modeled-cost distance among all matches visited by the hash chain.
 Decoder `dwork` builds the 8-bit Huffman lookup only when estimated tree-edge
 work exceeds one residual edge per symbol plus worst-case table construction.
 
