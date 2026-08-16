@@ -39,6 +39,9 @@ up to 65,535 prior decoded bytes. Linked LZ blocks use mode 4 and may reference
 that bounded history; raw blocks remain valid history for following blocks.
 Modes `cblinkh` and `clblinkh` additionally exact-select Huffman-coded linked
 token payloads (mode 5), counting the serialized tree in the decision.
+Modes `cblinks` and `clblinks` also consider a field-split entropy payload
+(mode 6) with separate Huffman streams for controls, literals, distance-low,
+distance-high, and lengths; all five stream headers and trees are counted.
 
 ## Staged experiments
 
