@@ -18,6 +18,7 @@ CODECS = {
     "bite-link-split-optimal-distances": ("clblinksopt2d", "d"),
     "bite-link-split-optimal-distances-fused": ("clblinksopt2df", "d"),
     "bite-link-split-optimal-distances-shared": ("clblinksopt2dfs", "d"),
+    "bite-link-split-optimal-distances-bucketed": ("clblinksopt2dfsb", "d"),
     "bite-link-split-delta-workdec": ("clblinksdf", "dwork"),
     "bite-link-split-delta-slowdec": ("clblinksdf", "dslow"),
 }

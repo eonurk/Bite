@@ -140,7 +140,8 @@ static void find_costed_matches(const uint8_t *input, size_t input_size, size_t 
                                 const uint16_t distance_low_costs[256],
                                 const uint16_t distance_high_costs[256],
                                 size_t *best_length, size_t *best_offset,
-                                uint16_t offsets[ENTROPY_LENGTH_CHOICES]) {
+                                uint16_t offsets[ENTROPY_LENGTH_CHOICES],
+                                int bucketed_costs) {
     *best_length = 0;
     *best_offset = 0;
     memset(offsets, 0, ENTROPY_LENGTH_CHOICES * sizeof(*offsets));
@@ -171,6 +172,40 @@ static void find_costed_matches(const uint8_t *input, size_t input_size, size_t 
     size_t minimum = *best_length > ENTROPY_LENGTH_CHOICES - 1u
         ? *best_length - (ENTROPY_LENGTH_CHOICES - 1u) : MIN_MATCH;
     if (minimum < MIN_MATCH) minimum = MIN_MATCH;
+    if (bucketed_costs) {
+        size_t choice_count = *best_length - minimum + 1u;
+        uint32_t bucket_costs[ENTROPY_LENGTH_CHOICES];
+        uint16_t bucket_offsets[ENTROPY_LENGTH_CHOICES] = {0};
+        for (size_t i = 0; i < choice_count; ++i) bucket_costs[i] = UINT32_MAX;
+        for (size_t i = 0; i < candidate_count; ++i) {
+            if (candidate_lengths[i] < minimum) continue;
+            size_t bucket = candidate_lengths[i] - minimum;
+            if (bucket >= choice_count) bucket = choice_count - 1u;
+            uint16_t encoded = (uint16_t)(candidate_offsets[i] - 1u);
+            uint32_t cost = distance_low_costs[(uint8_t)encoded] +
+                            distance_high_costs[(uint8_t)(encoded >> 8)];
+            if (cost < bucket_costs[bucket] ||
+                (cost == bucket_costs[bucket] &&
+                 candidate_offsets[i] < bucket_offsets[bucket])) {
+                bucket_costs[bucket] = cost;
+                bucket_offsets[bucket] = (uint16_t)candidate_offsets[i];
+            }
+        }
+        uint32_t lowest_cost = UINT32_MAX;
+        uint16_t selected_offset = 0;
+        for (size_t reverse = choice_count; reverse > 0; --reverse) {
+            size_t bucket = reverse - 1u;
+            if (bucket_costs[bucket] < lowest_cost ||
+                (bucket_costs[bucket] == lowest_cost &&
+                 bucket_offsets[bucket] < selected_offset)) {
+                lowest_cost = bucket_costs[bucket];
+                selected_offset = bucket_offsets[bucket];
+            }
+            offsets[bucket] = selected_offset;
+        }
+        *best_offset = offsets[choice_count - 1u];
+        return;
+    }
     for (size_t length = minimum; length <= *best_length; ++length) {
         uint32_t lowest_cost = UINT32_MAX;
         size_t selected_offset = 0;
@@ -778,6 +813,7 @@ static Buffer compress_entropy_parsed_range(const uint8_t *input, size_t input_s
                                             const uint8_t *model_tokens,
                                             size_t model_size,
                                             int alternative_distances,
+                                            int bucketed_distances,
                                             const MatchIndex *shared_index) {
     if (input_size > INT32_MAX) fail("input exceeds entropy parser 2 GiB limit");
     if (start > input_size || decoded_size != input_size - start)
@@ -828,7 +864,7 @@ static Buffer compress_entropy_parsed_range(const uint8_t *input, size_t input_s
                     find_costed_matches(input, input_size, pos, candidate, previous,
                                         distance_low_costs, distance_high_costs, &length,
                                         &offset, alternative_offsets +
-                                            (pos - start) * ENTROPY_LENGTH_CHOICES);
+                                            (pos - start) * ENTROPY_LENGTH_CHOICES, 0);
                 } else {
                     find_match(input, input_size, pos, heads, previous, &length, &offset);
                 }
@@ -851,7 +887,7 @@ static Buffer compress_entropy_parsed_range(const uint8_t *input, size_t input_s
                 ? previous[pos + start] : -1;
             find_costed_matches(input, input_size, pos + start, candidate, previous,
                                 distance_low_costs, distance_high_costs,
-                                &maximum, &unused_offset, offsets);
+                                &maximum, &unused_offset, offsets, bucketed_distances);
             size_t minimum = maximum > ENTROPY_LENGTH_CHOICES - 1u
                 ? maximum - (ENTROPY_LENGTH_CHOICES - 1u) : MIN_MATCH;
             if (minimum < MIN_MATCH) minimum = MIN_MATCH;
@@ -1092,7 +1128,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
             }
             Buffer parsed_trial = compress_entropy_parsed_range(
                 input + history_start, history_size + decoded_size, history_size,
-                decoded_size, trial.data + HEADER_SIZE, payload_size, 0, shared);
+                decoded_size, trial.data + HEADER_SIZE, payload_size, 0, 0, shared);
             parsed_split = split_huffman_encode(parsed_trial.data + HEADER_SIZE,
                                                 parsed_trial.size - HEADER_SIZE,
                                                 decoded_size);
@@ -1100,7 +1136,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
                 Buffer iterated_trial = compress_entropy_parsed_range(
                     input + history_start, history_size + decoded_size, history_size,
                     decoded_size, parsed_trial.data + HEADER_SIZE,
-                    parsed_trial.size - HEADER_SIZE, 0, shared);
+                    parsed_trial.size - HEADER_SIZE, 0, 0, shared);
                 Buffer iterated_split = split_huffman_encode(
                     iterated_trial.data + HEADER_SIZE,
                     iterated_trial.size - HEADER_SIZE, decoded_size);
@@ -1115,7 +1151,8 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
                         input + history_start, history_size + decoded_size, history_size,
                         decoded_size, iterated_trial.data + HEADER_SIZE,
                         iterated_trial.size - HEADER_SIZE,
-                        entropy_parse > 3 ? 2 : 1, shared);
+                        entropy_parse > 3 ? 2 : 1,
+                        entropy_parse > 5, shared);
                     Buffer distance_split = split_huffman_encode(
                         distance_trial.data + HEADER_SIZE,
                         distance_trial.size - HEADER_SIZE, decoded_size);
@@ -1311,7 +1348,7 @@ static void write_file(const char *path, const Buffer *buffer) {
 #ifndef BITE_NO_MAIN
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|clblinksopt2d|clblinksopt2df|clblinksopt2dfs|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|clblinksopt2d|clblinksopt2df|clblinksopt2dfs|clblinksopt2dfsb|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -1326,7 +1363,8 @@ int main(int argc, char **argv) {
                   strcmp(argv[1], "clblinksopt2") == 0 ||
                   strcmp(argv[1], "clblinksopt2d") == 0 ||
                   strcmp(argv[1], "clblinksopt2df") == 0 ||
-                  strcmp(argv[1], "clblinksopt2dfs") == 0;
+                  strcmp(argv[1], "clblinksopt2dfs") == 0 ||
+                  strcmp(argv[1], "clblinksopt2dfsb") == 0;
     int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0 ||
                     strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0;
     is_linked = is_linked || strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0;
@@ -1338,6 +1376,7 @@ int main(int argc, char **argv) {
     is_linked = is_linked || strcmp(argv[1], "clblinksopt2d") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksopt2df") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksopt2dfs") == 0;
+    is_linked = is_linked || strcmp(argv[1], "clblinksopt2dfsb") == 0;
     int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
                      strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 || is_linked;
     int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 ||
@@ -1348,7 +1387,8 @@ int main(int argc, char **argv) {
                      strcmp(argv[1], "clblinksopt2") == 0 ||
                      strcmp(argv[1], "clblinksopt2d") == 0 ||
                      strcmp(argv[1], "clblinksopt2df") == 0 ||
-                     strcmp(argv[1], "clblinksopt2dfs") == 0;
+                     strcmp(argv[1], "clblinksopt2dfs") == 0 ||
+                     strcmp(argv[1], "clblinksopt2dfsb") == 0;
     int is_split_entropy = strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
                            strcmp(argv[1], "clblinksg") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksd") == 0;
@@ -1358,6 +1398,7 @@ int main(int argc, char **argv) {
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2d") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2df") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2dfs") == 0;
+    is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2dfsb") == 0;
     int is_gated_lazy = strcmp(argv[1], "clblinksg") == 0;
     int is_delta_stride = strcmp(argv[1], "clblinksd") == 0 ||
                           strcmp(argv[1], "clblinksdf") == 0 ||
@@ -1365,22 +1406,25 @@ int main(int argc, char **argv) {
                           strcmp(argv[1], "clblinksopt2") == 0 ||
                           strcmp(argv[1], "clblinksopt2d") == 0 ||
                           strcmp(argv[1], "clblinksopt2df") == 0 ||
-                          strcmp(argv[1], "clblinksopt2dfs") == 0;
+                          strcmp(argv[1], "clblinksopt2dfs") == 0 ||
+                          strcmp(argv[1], "clblinksopt2dfsb") == 0;
     int is_sampled_delta = strcmp(argv[1], "clblinksdf") == 0 ||
                            strcmp(argv[1], "clblinksopt") == 0 ||
                            strcmp(argv[1], "clblinksopt2") == 0 ||
                            strcmp(argv[1], "clblinksopt2d") == 0 ||
                            strcmp(argv[1], "clblinksopt2df") == 0 ||
-                           strcmp(argv[1], "clblinksopt2dfs") == 0;
+                           strcmp(argv[1], "clblinksopt2dfs") == 0 ||
+                           strcmp(argv[1], "clblinksopt2dfsb") == 0;
     int is_entropy_parse = strcmp(argv[1], "clblinksopt") == 0 ? 1 :
                            (strcmp(argv[1], "clblinksopt2") == 0 ? 2 :
                            (strcmp(argv[1], "clblinksopt2d") == 0 ? 3 :
                            (strcmp(argv[1], "clblinksopt2df") == 0 ? 4 :
-                           (strcmp(argv[1], "clblinksopt2dfs") == 0 ? 5 : 0))));
+                           (strcmp(argv[1], "clblinksopt2dfs") == 0 ? 5 :
+                           (strcmp(argv[1], "clblinksopt2dfsb") == 0 ? 6 : 0)))));
     int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dwork") == 0 ||
                     strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|clblinksopt2d|clblinksopt2df|clblinksopt2dfs|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|clblinksopt2d|clblinksopt2df|clblinksopt2dfs|clblinksopt2dfsb|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
