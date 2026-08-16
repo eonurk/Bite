@@ -64,6 +64,11 @@
   cut encode throughput 37.960%, decoder throughput fell 7.119%, and RSS rose
   5.900%. Almost all size benefit came from the generated pseudo-executable;
   only four small Canterbury files changed. The implementation was reverted.
+- `EXP-0011` four literal Huffman streams keyed by the previous byte's top two
+  bits was rejected. Exact selection improved size only 0.258%, while encode
+  throughput fell 11.319%, decode throughput fell 4.535%, and encoder RSS rose
+  19.940%. Mode 8 won 29 of 152 blocks, but one generated pseudo-text file
+  contributed 83.6% of the 6,084-byte gain. The implementation was reverted.
 
 ## Dataset-specific observations
 
@@ -86,6 +91,10 @@
 - Generated pseudo-executable data is 4.340 bits/byte in Bite versus 4.003 in
   LZ4, 1.966 in zstd-3, and 0.392 in xz-6. A 64 KiB window and fixed match
   representation miss strong long/structured repetition.
+- Coarse previous-byte literal contexts help selectively rather than broadly:
+  five Canterbury files improved by 992 bytes total, while generated
+  `pseudo_text.bin` improved 5,088 bytes and 17 of 26 files were unchanged.
+  Multiple Huffman trees cost too much for this small, concentrated gain.
 - Huffman token coding is broadly effective on compressible categories:
   Canterbury -22.057%, pseudo-executable -28.925%, JSON -13.918%, source
   -20.906%, repetitive text -27.784%, and XML -21.684% versus v2 lazy. It has
@@ -99,8 +108,9 @@
 1. V1 has no raw-block fallback. V2 fixes incompressible expansion and
    `EXP-0003` adds order-0 entropy coding, but the model mixes control, match,
    distance, length, and literal bytes in one alphabet. `EXP-0007` fixes field
-   mixing in mode 6, but its models remain order-0 and cannot exploit byte
-   context, distance recency, or length/distance correlation.
+   mixing in mode 6. `EXP-0011` shows that adding four independent static
+   literal trees for coarse byte context costs much more than its small gain;
+   distance recency and length/distance correlation remain unmodeled.
 2. Greedy parsing chooses the locally longest match and every match costs three
    bytes regardless of distance/length. It cannot trade a literal or short
    match for a materially better next match. Bounded single-hash chains also
@@ -238,7 +248,7 @@ Ranking after `EXP-0009` (first item completed by `EXP-0010`):
    rather than eight full-block histogram passes.
 5. Cost-aware lazy gating.
 
-Current ranking after `EXP-0010`:
+Ranking after `EXP-0010` (first item completed by rejected `EXP-0011`):
 
 1. Context-split literal models within the isolated literal stream.
 2. Persistent circular match chains across linked blocks.
@@ -246,6 +256,19 @@ Current ranking after `EXP-0010`:
 4. Cost-aware lazy gating.
 5. Adaptive Huffman lookup eligibility based on stream length and tree/code
    depth, avoiding table construction for low-benefit distributions.
+
+Current ranking after `EXP-0011`:
+
+1. Persistent circular match chains across linked blocks, eliminating repeated
+   history indexing without changing the retained token representation.
+2. Cheaper sampled transform prefiltering to avoid eight full-block histogram
+   passes and an unprofitable extra parse.
+3. Cost-aware lazy gating using token/entropy estimates instead of a fixed
+   match-length threshold.
+4. Adaptive Huffman lookup eligibility based on stream length and estimated
+   tree-walk work.
+5. Distance recency or length/distance correlation modeling within the split
+   token representation, with complete model costs counted.
 
 ## Interactions between components
 
@@ -307,6 +330,10 @@ Current ranking after `EXP-0010`:
   source +8.90%, and text +6.20%. The same table threshold is mildly harmful
   on binary (-2.13%), pseudo-executable (-5.30%), image (-1.14%), and tiny files
   (-1.98%), motivating distribution-aware eligibility rather than a size gate.
+- Exact selection again protects size but not compute in `EXP-0011`: building
+  four extra literal trees for every block costs 11.319% encode throughput even
+  though the new representation wins only 29 of 152 blocks. Its decode cost is
+  paid only on selected blocks, yet eight streams still reduce decode 4.535%.
 
 ## Known benchmark artifacts
 
@@ -318,6 +345,10 @@ Current ranking after `EXP-0010`:
 - `EXP-0008` decode timing changed from -0.393% in the screen to +8.600% in
   validation even though the decoder was unchanged and stream size barely
   moved. Do not credit this decode result without an in-process benchmark.
+- `EXP-0011` screen timing incorrectly suggested the strictly-more-expensive
+  encoder was 18.8% faster. Five repeats instead measured an 11.3% slowdown,
+  reinforcing that one-repeat screens decide whether to validate size/correctness
+  signals, not whether to credit modest timing changes.
 - Per-file medians are summed, so aggregate time weights startup once per file.
   A later in-process/library benchmark is needed before making startup or
   steady-state speed claims.
@@ -352,8 +383,10 @@ Current ranking after `EXP-0010`:
   remains open.
 - A cost-aware lazy gate may avoid the generated-source ratio regression of the
   fixed 32-byte policy while retaining its broad encode-speed gain.
-- Context-dependent literal alphabets may further improve structured text now
-  that literals are isolated from control and match fields.
+- Literal context may still be useful only if its coding tables are shared or
+  much cheaper than four independent serialized Huffman trees; do not retry the
+  rejected top-two-bit split without a mechanism that addresses table/compute
+  cost and the pseudo-text concentration.
 - Huffman lookup should be enabled by estimated decoded bit work, not decoded
   symbol count alone, to avoid table-build regressions on shallow/skewed trees.
 
