@@ -1,0 +1,8 @@
+/bin/
+/build/
+/corpus/
+/results/
+*.bite
+*.decoded
+.DS_Store
+

@@ -1,0 +1,1 @@
+experiment_id,timestamp,git_commit,hypothesis,change_summary,compressed_size_total,bits_per_byte,encode_MB_s,decode_MB_s,peak_memory,correct,decision,notes
