@@ -34,6 +34,10 @@ Huffman encoding of the LZ token payload. Its payload includes the decoded token
 size and a compact serialized Huffman tree; blocks use it only when the complete
 representation is smaller than both raw and plain-LZ alternatives.
 
+Experimental modes `cblink` and `clblink` seed each block's match finder with
+up to 65,535 prior decoded bytes. Linked LZ blocks use mode 4 and may reference
+that bounded history; raw blocks remain valid history for following blocks.
+
 ## Staged experiments
 
 Routine experiments do not rerun every historical mode and slow external tool:

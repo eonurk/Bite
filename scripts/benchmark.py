@@ -37,6 +37,8 @@ CODECS = [
     Codec("bite-block-lazy", str(ROOT / "bin/bite"), ("clb", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-huff-greedy", str(ROOT / "bin/bite"), ("cbh", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-huff-lazy", str(ROOT / "bin/bite"), ("clbh", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-link-greedy", str(ROOT / "bin/bite"), ("cblink", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-link-lazy", str(ROOT / "bin/bite"), ("clblink", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("gzip-1", "gzip", ("-1", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("gzip-9", "gzip", ("-9", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("zstd-1", "zstd", ("-q", "-1", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),

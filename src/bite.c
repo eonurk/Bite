@@ -133,22 +133,25 @@ static void find_match(const uint8_t *input, size_t input_size, size_t pos,
     }
 }
 
-static Buffer compress_buffer(const uint8_t *input, size_t input_size, int lazy) {
+static Buffer compress_range(const uint8_t *input, size_t input_size,
+                             size_t start, size_t decoded_size, int lazy) {
     if (input_size > INT32_MAX) fail("input exceeds baseline 2 GiB limit");
+    if (start > input_size || decoded_size != input_size - start) fail("invalid compression range");
     Buffer output = {0};
-    reserve(&output, HEADER_SIZE + input_size / 2 + 64);
+    reserve(&output, HEADER_SIZE + decoded_size / 2 + 64);
     append_byte(&output, 'B'); append_byte(&output, 'I');
     append_byte(&output, 'T'); append_byte(&output, 'E');
     append_byte(&output, 1); append_byte(&output, 0);
     append_byte(&output, 0); append_byte(&output, 0);
-    append_u64le(&output, (uint64_t)input_size);
+    append_u64le(&output, (uint64_t)decoded_size);
 
     int32_t *heads = (int32_t *)malloc(HASH_SIZE * sizeof(*heads));
     int32_t *previous = input_size ? (int32_t *)malloc(input_size * sizeof(*previous)) : NULL;
     if (!heads || (input_size && !previous)) fail("out of memory");
     for (size_t i = 0; i < HASH_SIZE; ++i) heads[i] = -1;
+    for (size_t i = 0; i < start; ++i) insert_position(input, input_size, i, heads, previous);
 
-    size_t pos = 0;
+    size_t pos = start;
     while (pos < input_size) {
         size_t control_pos = output.size;
         append_byte(&output, 0);
@@ -185,6 +188,10 @@ static Buffer compress_buffer(const uint8_t *input, size_t input_size, int lazy)
     free(previous);
     free(heads);
     return output;
+}
+
+static Buffer compress_buffer(const uint8_t *input, size_t input_size, int lazy) {
+    return compress_range(input, input_size, 0, input_size, lazy);
 }
 
 typedef struct {
@@ -459,9 +466,43 @@ static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy
     return output;
 }
 
+static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size, int lazy) {
+    Buffer output = {0};
+    reserve(&output, HEADER_SIZE + input_size / 2 + 64);
+    append_byte(&output, 'B'); append_byte(&output, 'I');
+    append_byte(&output, 'T'); append_byte(&output, 'E');
+    append_byte(&output, 2); append_byte(&output, 0);
+    append_byte(&output, 0); append_byte(&output, 0);
+    append_u64le(&output, (uint64_t)input_size);
+
+    size_t pos = 0;
+    while (pos < input_size) {
+        size_t decoded_size = input_size - pos;
+        if (decoded_size > BLOCK_SIZE) decoded_size = BLOCK_SIZE;
+        size_t history_start = pos > WINDOW ? pos - WINDOW : 0;
+        size_t history_size = pos - history_start;
+        Buffer trial = compress_range(input + history_start, history_size + decoded_size,
+                                      history_size, decoded_size, lazy);
+        size_t payload_size = trial.size - HEADER_SIZE;
+        int use_lz = payload_size < decoded_size;
+        append_byte(&output, (uint8_t)(use_lz ? 4 : 0));
+        append_u32le(&output, (uint32_t)decoded_size);
+        append_u32le(&output, (uint32_t)(use_lz ? payload_size : decoded_size));
+        if (use_lz)
+            append_bytes(&output, trial.data + HEADER_SIZE, payload_size);
+        else
+            append_bytes(&output, input + pos, decoded_size);
+        free(trial.data);
+        pos += decoded_size;
+    }
+    return output;
+}
+
 static void decompress_payload(Buffer *output, const uint8_t *input,
-                               size_t input_size, size_t decoded_size) {
+                               size_t input_size, size_t decoded_size,
+                               size_t match_base) {
     if (decoded_size > SIZE_MAX - output->size) fail("decoded size overflow");
+    if (match_base > output->size) fail("invalid match base");
     size_t block_start = output->size;
     size_t target_size = block_start + decoded_size;
     size_t ip = 0;
@@ -478,7 +519,7 @@ static void decompress_payload(Buffer *output, const uint8_t *input,
                 offset += 1;
                 size_t length = (size_t)input[ip + 2] + MIN_MATCH;
                 ip += 3;
-                if (offset > output->size - block_start || length > target_size - output->size)
+                if (offset > output->size - match_base || length > target_size - output->size)
                     fail("invalid match");
                 reserve(output, length);
                 for (size_t i = 0; i < length; ++i) {
@@ -500,7 +541,7 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
     Buffer output = {0};
     reserve(&output, decoded_size ? decoded_size : 1);
     if (input[4] == 1) {
-        decompress_payload(&output, input + HEADER_SIZE, input_size - HEADER_SIZE, decoded_size);
+        decompress_payload(&output, input + HEADER_SIZE, input_size - HEADER_SIZE, decoded_size, 0);
         return output;
     }
 
@@ -510,18 +551,23 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
         uint8_t mode = input[ip++];
         size_t block_decoded = read_u32le(input + ip); ip += 4;
         size_t block_stored = read_u32le(input + ip); ip += 4;
-        if (mode > 2 || block_decoded == 0 || block_decoded > BLOCK_SIZE ||
+        if ((mode > 2 && mode != 4) || block_decoded == 0 || block_decoded > BLOCK_SIZE ||
             block_decoded > decoded_size - output.size || block_stored > input_size - ip)
             fail("invalid block");
         if (mode == 0) {
             if (block_stored != block_decoded) fail("invalid raw block");
             append_bytes(&output, input + ip, block_stored);
         } else if (mode == 1) {
-            decompress_payload(&output, input + ip, block_stored, block_decoded);
-        } else {
+            size_t match_base = output.size;
+            decompress_payload(&output, input + ip, block_stored, block_decoded, match_base);
+        } else if (mode == 2) {
+            size_t match_base = output.size;
             Buffer token_stream = huffman_decode(input + ip, block_stored);
-            decompress_payload(&output, token_stream.data, token_stream.size, block_decoded);
+            decompress_payload(&output, token_stream.data, token_stream.size, block_decoded, match_base);
             free(token_stream.data);
+        } else {
+            size_t match_base = output.size > WINDOW ? output.size - WINDOW : 0;
+            decompress_payload(&output, input + ip, block_stored, block_decoded, match_base);
         }
         ip += block_stored;
     }
@@ -553,25 +599,30 @@ static void write_file(const char *path, const Buffer *buffer) {
 
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|d INPUT OUTPUT\n");
-        fprintf(stderr, "  c/cl: v1; cb/clb: v2 blocked; cbh/clbh: v2 + Huffman; d: decompress\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c/cl: v1; cb/clb: v2; *h: Huffman; *link: linked history; d: decode\n");
         return 2;
     }
-    int is_greedy = strcmp(argv[1], "c") == 0 || strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "cbh") == 0;
-    int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0 || strcmp(argv[1], "clbh") == 0;
+    int is_greedy = strcmp(argv[1], "c") == 0 || strcmp(argv[1], "cb") == 0 ||
+                    strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "cblink") == 0;
+    int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0 ||
+                  strcmp(argv[1], "clbh") == 0 || strcmp(argv[1], "clblink") == 0;
+    int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0;
     int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
-                     strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0;
+                     strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 || is_linked;
     int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0;
     int is_decode = strcmp(argv[1], "d") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|d INPUT OUTPUT\n");
-        fprintf(stderr, "  c/cl: v1; cb/clb: v2 blocked; cbh/clbh: v2 + Huffman; d: decompress\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c/cl: v1; cb/clb: v2; *h: Huffman; *link: linked history; d: decode\n");
         return 2;
     }
     Buffer input = read_file(argv[2]);
     Buffer output;
     if (is_decode)
         output = decompress_buffer(input.data, input.size);
+    else if (is_linked)
+        output = compress_linked_blocked(input.data, input.size, is_lazy);
     else if (is_blocked)
         output = compress_blocked(input.data, input.size, is_lazy, is_entropy);
     else
