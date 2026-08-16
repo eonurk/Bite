@@ -1,11 +1,11 @@
 {
   "benchmark_schema": 1,
-  "timestamp_utc": "2026-08-16T09:49:34Z",
+  "timestamp_utc": "2026-08-16T09:53:46Z",
   "stage": "validate",
   "repeats": 3,
   "platform": "Darwin Onurs-MacBook-Pro.local 25.4.0 Darwin Kernel Version 25.4.0: Thu Mar 19 19:32:36 PDT 2026; root:xnu-12377.101.15~1/RELEASE_ARM64_T8103 arm64",
   "platform_compat": "Darwin 25.4.0 Darwin Kernel Version 25.4.0: Thu Mar 19 19:32:36 PDT 2026; root:xnu-12377.101.15~1/RELEASE_ARM64_T8103 arm64",
-  "git_head": "f6bf33bf16797d47e1bb1f4f69ac39d3fe833478",
+  "git_head": "6b23b647c6617b6c3ca416b4c42daf0c30c9d4b5",
   "corpus_dir": "/Users/onur-lumc/Desktop/Bite/corpus/research",
   "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
   "bite_sha256": "06c5ad48e02d3652a168b6614bd7387cec375b847e3cae63370050aa29457254",
@@ -95,8 +95,6 @@
       "sha256": "1aebdc97d29904b25791da9aa32be90b69d7da6dc0ac9b95512ed27ed40d2112"
     }
   ],
-  "aggregate_exclude": [],
-  "aggregate_excluded_files": [],
   "cached_external_from": null,
   "external_cache_fingerprint": "34a5e0037fababf44f81a38bc73c4cf494314fc22d8a9155baeb248ba3c34c48"
 }

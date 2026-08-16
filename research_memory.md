@@ -75,6 +75,13 @@
   falls 2.509% to 2,298,212 bytes; public research falls 3.616% to 4,154,139
   bytes, with all 16 public files improving and no file on either suite
   regressing. It is intentionally slow: encode throughput falls 70–74%.
+- `EXP-0020` retains internal maximum-ratio mode `clblinksopt2`. It rebuilds
+  split-field costs from EXP-0018's optimized parse and runs the bounded DP once
+  more, exact-selecting the second result. Dev size falls another 0.482% to
+  2,287,142 bytes (15/26 files improve, none regress); public research falls
+  0.498% to 4,133,447 bytes (14/16 improve, none regress). Encode throughput
+  falls 39.8–42.3% and encoder RSS rises 7.2–11.3% versus EXP-0018. It is a
+  useful convergence result, but remains externally dominated on dev.
 - Routine candidate evaluation now preserves the original frozen dev corpus and
   adds a separately addressable 13,787,888-byte public research suite: 13
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
@@ -462,6 +469,20 @@ Ranking after `EXP-0019`:
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
+Ranking after `EXP-0020`:
+
+1. Add alternative match distances or joint length/distance costs to the DP;
+   current parsing considers lengths only at the single longest-match distance.
+2. Share match precomputation and split-field statistics across optimization
+   passes; EXP-0020 makes the convergence benefit measurable but compounds the
+   dominant encoder work.
+3. Block-level entropy-model selection that reuses parsed streams and exact
+   costs every representation.
+4. Test a principled convergence/stopping signal before any third parse; do not
+   perform an iteration-count sweep.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -539,6 +560,11 @@ Ranking after `EXP-0019`:
   blocks, but observed savings concentrate in three generated fixtures and do
   not reproduce on Calgary+Large. Parser acceleration must share or reduce work
   on compressible blocks, where EXP-0018 spends most of its time.
+- `EXP-0020` shows that the cost model and optimized parse have not converged
+  after one pass. A second model/parse pass improves roughly 0.5% on both suites
+  with broad real-corpus coverage, but costs 66–73% more encode time. The
+  diminishing gain relative to EXP-0018's 2.5–3.6% first pass argues for shared
+  machinery or an evidence-based stopping rule rather than blind iteration.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -596,6 +622,9 @@ Ranking after `EXP-0019`:
 - EXP-0018 increases the production binary from 73,496 to 91,000 bytes
   (+23.816%). Treat this as part of the maximum-mode tradeoff; future parser
   work should seek shared machinery or compile-time optionality.
+- EXP-0020 increases the production binary from 91,000 to 92,424 bytes
+  (+1.565%) and compounds parser time. Its ordinary mode-6 output adds no
+  decoder representation, so the code-size increase is encoder/CLI machinery.
 - The new in-process baseline exposes the prefix lookup's steady-state effect:
   versus `dslow`, decode is 47.7% faster on dev (277.29 vs 187.73 MB/s) and
   68.3% faster on public research (196.73 vs 116.86 MB/s). The earlier process
@@ -609,6 +638,11 @@ Ranking after `EXP-0019`:
   not an untouched hold-out; it may guide decisions and can itself eventually
   overfit. Periodic audits must therefore use a different locked corpus. Silesia
   is already observed and remains excluded from routine optimization.
+- EXP-0020's first result files were generated while the working benchmark
+  harness contained unrelated uncommitted aggregation changes. They were
+  discarded and regenerated with the exact committed `6b23b64` script over all
+  frozen files. Result metadata now names that commit and matches repository
+  behavior, preserving reproducibility.
 - `EXP-0005` validated this workflow: the two-mode screen took 6.9 seconds and
   the three-repeat validation 6.7 seconds while 13 external codec summaries
   were fingerprint-validated from `EXP-0004`. Fresh timing remained serial.
@@ -678,3 +712,6 @@ On this same dev harness, EXP-0018 adds a maximum-ratio internal point at
 2,298,212 bytes and 6.25 MB/s encode: it is 2.50% larger but about 7% faster
 than the cached xz-6 measurement, so neither point dominates the other. This
 does not override the Silesia conclusion; no held-out data informed EXP-0018.
+EXP-0020 reaches 2,287,142 bytes at 3.58 MB/s. Cached xz-6 is both smaller
+(2,242,316 bytes) and faster (5.82 MB/s), so EXP-0020 is retained only as Bite's
+internal maximum-ratio endpoint and is not an external Pareto point.

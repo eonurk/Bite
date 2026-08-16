@@ -1,3 +1,3 @@
-codec,aggregate_files,excluded_files,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,peak_memory_encode,peak_memory_decode,binary_size,correct
-bite-link-split-optimal,16,0,13787888,4154139,2.4103120071761532,3.319072375767879,4.045084000797942,0.17262395797297359,3.408554185099783,79.8723894522142,9846784,7536640,92424,True
-bite-link-split-optimal-iterated,16,0,13787888,4133447,2.3983061075053698,3.3356876234290653,6.987234542961232,0.16567900020163506,1.973296862331547,83.22049253809976,11452416,7503872,92424,True
+codec,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,peak_memory_encode,peak_memory_decode,binary_size,correct
+bite-link-split-optimal,13787888,4154139,2.4103120071761532,3.319072375767879,3.979512290796265,0.14733812713529915,3.4647180338878076,93.57990540587447,10665984,7536640,92424,True
+bite-link-split-optimal-iterated,13787888,4133447,2.3983061075053698,3.3356876234290653,7.164984666625969,0.15170358505565673,1.9243429876721276,90.88702811434236,9945088,7520256,92424,True
