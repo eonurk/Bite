@@ -2,7 +2,20 @@
 
 ## What currently works
 
-- Pending initial benchmark.
+- `BASE-0001` is a correct, readable 64 KiB-window LZSS codec. It uses a
+  65,536-entry last-position hash table, per-input hash chains capped at 64
+  probes, greedy parsing, 4..259-byte matches, and eight-token control groups.
+- The v1 decoder is strict about magic/version, truncation, invalid offsets,
+  decoded size, and trailing data.
+- All 26 development files (8,982,882 bytes across Canterbury plus generated
+  heterogeneous fixtures) round-trip byte-for-byte with SHA-256 verification.
+- The benchmark records per-file and aggregate size, bits/byte, ratio, median
+  encode/decode time, throughput, peak RSS, binary size, exact tool versions,
+  corpus hashes, and correctness. Any mismatch aborts the run.
+- Baseline Bite totals 4,678,316 bytes (4.166 bits/byte), 40.0 MB/s encode,
+  76.5 MB/s decode, 9.99 MB encoder peak RSS, and 3.90 MB decoder peak RSS.
+- The strongest relative Bite results are highly repetitive generated text,
+  source, JSON, and XML. Despite its simple coding, it beats LZ4's size there.
 
 ## What consistently fails
 
@@ -10,15 +23,56 @@
 
 ## Dataset-specific observations
 
-- Pending initial benchmark.
+- Canterbury: Bite 2.993 bits/byte versus LZ4 3.499, zstd-3 1.806, xz-6
+  1.401. Matches are useful, but the literal/token representation leaves a
+  large entropy-coding gap.
+- Generated structured data compresses well with raw matches: Bite reaches
+  0.434 bits/byte on repetitive text, 1.260 on source, 1.635 on JSON, and
+  1.472 on XML. zstd-3 remains substantially smaller on each.
+- Uniform random expands to 9.000 bits/byte; the fixed one-control-bit cost is
+  visible exactly. Scientific doubles and the raw RGB gradient also remain
+  near 9 bits/byte, while xz-6 exploits byte-plane/stride structure in both.
+- Generated pseudo-executable data is 4.340 bits/byte in Bite versus 4.003 in
+  LZ4, 1.966 in zstd-3, and 0.392 in xz-6. A 64 KiB window and fixed match
+  representation miss strong long/structured repetition.
+- Process startup dominates the six generated small files: their aggregate
+  Bite throughput is only about 0.23 MB/s. Size overhead is 16-byte header plus
+  token control bytes.
 
 ## Architecture weaknesses
 
-- Pending initial architecture and benchmark audit.
+1. There is no raw-block fallback or entropy coder. Incompressible inputs pay
+   one control bit per literal plus a 16-byte header; random data therefore
+   expands by about 12.5%. Low-order literal bias is left entirely unused.
+2. Greedy parsing chooses the locally longest match and every match costs three
+   bytes regardless of distance/length. It cannot trade a literal or short
+   match for a materially better next match. Bounded single-hash chains also
+   limit match choice.
+3. Compression is whole-file and stores the input plus a four-byte predecessor
+   per byte, has a 2 GiB input limit, and lacks independent blocks. Encoder RSS
+   is 9.99 MB on an 8.98 MB per-file corpus versus 3.95 MB for LZ4. The current
+   process-per-file harness also conflates startup latency with steady-state
+   throughput on tiny files.
 
 ## Promising unexplored directions
 
-- Pending initial benchmark.
+Ranked by expected information gain after `BASE-0001`:
+
+1. `EXP-0001` — one-token lazy parsing: emit a literal when the next-position
+   match is at least two bytes longer than the current match. This isolates
+   parsing quality while preserving the format and decoder.
+2. `EXP-0002` — independent blocks with a raw-block mode. This should eliminate
+   pathological expansion and bound working memory; per-block selection tests
+   whether mixed files benefit without filename/type special cases.
+3. `EXP-0003` — block-static canonical Huffman coding for literals, with an
+   explicit raw/Huffman mode decision including table cost. This measures the
+   literal-entropy gap on Canterbury and structured text.
+4. `EXP-0004` — distance/length classes with short encodings for nearby matches
+   and varint escape forms. This tests whether fixed three-byte matches are the
+   main representation bottleneck.
+5. `EXP-0005` — reversible stride/byte-plane transform candidates selected by
+   sampled estimated cost per block. This targets scientific and raw image data
+   while remaining data-driven and general-purpose.
 
 ## Interactions between components
 
@@ -28,8 +82,40 @@
 
 - Process startup dominates very small per-file timings; aggregate throughput must
   not be interpreted as steady-state codec throughput.
+- A five-repeat Bite rerun reproduced compressed size and peak RSS exactly.
+  Encode throughput changed -0.20%; decode throughput changed +2.01%. Treat
+  timing deltas below 3% as noise unless additional repetitions confirm them.
+- Per-file medians are summed, so aggregate time weights startup once per file.
+  A later in-process/library benchmark is needed before making startup or
+  steady-state speed claims.
+- The generated corpus is deterministic and its manifest is hashed. Canterbury
+  is pinned to archive SHA-256
+  `f140e8a5b73d3f53198555a63bfb827889394a42f20825df33c810c3d5e3f8fb`.
+- Held-out generation uses a separate seed and is only invoked explicitly with
+  `--held-out`; it has not been generated or inspected during initial tuning.
 
 ## Open hypotheses
 
-- Pending ranking after the initial benchmark.
+- A one-byte lazy lookahead will reduce total size by avoiding short matches
+  that conceal longer matches at the next byte, with a measurable but bounded
+  encoder-speed cost and no decoder cost.
+- Raw block fallback can turn the current 12.5% worst-case expansion into small
+  bounded framing overhead.
+- Literal entropy coding should close more of the Canterbury gap than deeper
+  match search alone.
+- Byte-plane structure explains the unusually large xz advantage on generated
+  floating-point and RGB data.
 
+## Initial external Pareto frontier (2026-08-16)
+
+All points use 26 files, three repetitions, summed per-file median times. The
+encode size/speed frontier is: xz-6 (2,242,316 B, 5.67 MB/s), xz-1 (2,853,460 B,
+20.09 MB/s), Brotli-6 (3,250,726 B, 34.19 MB/s), zstd-6 (3,500,213 B,
+50.14 MB/s), zstd-3 (3,579,507 B, 54.37 MB/s), Brotli-1 (3,743,568 B,
+58.03 MB/s), and LZ4 (4,676,048 B, 70.16 MB/s).
+
+The size/decode-speed frontier is: xz-9 (2,242,316 B, 39.40 MB/s), Brotli-11
+(2,795,544 B, 51.51 MB/s), Brotli-6 (3,250,726 B, 57.19 MB/s), zstd-6
+(3,500,213 B, 63.73 MB/s), gzip-1 (3,941,192 B, 70.64 MB/s), LZ4 (4,676,048 B,
+72.69 MB/s), and Bite (4,678,316 B, 76.51 MB/s). The small Bite/LZ4 decode
+difference needs an in-process benchmark before it is considered meaningful.
