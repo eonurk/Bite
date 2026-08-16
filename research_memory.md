@@ -162,6 +162,12 @@
   every optimized case. Three extra Huffman encodes changed one-repeat encode
   throughput -1.776% on dev and -1.688% on public research. Parent mode 5
   already captures blocks where the original parse benefits from joint coding.
+- `EXP-0025` exact fixed-point stopping was rejected for lack of practical
+  effect. When first optimized tokens equal parent tokens, reusing that stream
+  as the next model is provably equivalent and preserves every observed output
+  byte. Nevertheless one-repeat encode gains were only 0.439% on dev and 0.011%
+  on public research, far below process noise. The condition covers too little
+  work to justify a retained mode.
 
 ## Dataset-specific observations
 
@@ -565,6 +571,19 @@ Ranking after `EXP-0024`:
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
+Ranking after `EXP-0025`:
+
+1. Explore joint length/distance classes only if they reuse the shared match
+   index rather than adding another representation pass.
+2. Share or stream split-field demultiplexing and Huffman statistics between
+   parse/model stages.
+3. Explore a conditional distance model that captures length correlation; do
+   not retry plain distance deltas or joint token Huffman.
+4. Revisit literal context only with shared/cheap tables that directly address
+   EXP-0011's serialization and pseudo-text concentration failures.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -668,6 +687,10 @@ Ranking after `EXP-0024`:
   still exact-selects joint mode 5 where useful. Generating alternative entropy
   models without a structural reason repeats the zero-win compute pattern from
   EXP-0015.
+- `EXP-0025` distinguishes a valid stopping proof from a useful policy. Exact
+  parent/first-parse equality makes the second normal DP redundant, but it is
+  too uncommon or confined to low-work blocks to move throughput. Broader
+  convergence heuristics would sacrifice output guarantees and need new evidence.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -815,6 +838,8 @@ Ranking after `EXP-0024`:
 - Joint Huffman over optimized token payloads is closed by EXP-0024: it wins no
   observed block. Future block models must exploit a dependency that the five
   split order-0 streams miss, rather than recombining those fields.
+- Exact first-parse fixed-point stopping is closed by EXP-0025 as a practical
+  speed mechanism: it is correct but produces sub-noise gains on both suites.
 - Huffman lookup should be enabled by estimated decoded bit work, not decoded
   symbol count alone. `EXP-0017` resolves the earlier ambiguity with repeated
   startup-free evidence and retains the work gate as optional `dwork`.
