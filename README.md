@@ -42,6 +42,8 @@ token payloads (mode 5), counting the serialized tree in the decision.
 Modes `cblinks` and `clblinks` also consider a field-split entropy payload
 (mode 6) with separate Huffman streams for controls, literals, distance-low,
 distance-high, and lengths; all five stream headers and trees are counted.
+Mode `clblinksg` uses the same mode-6 representation but limits lazy lookahead
+to current matches shorter than 32 bytes.
 
 ## Staged experiments
 

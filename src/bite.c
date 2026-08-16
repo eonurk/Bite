@@ -134,7 +134,7 @@ static void find_match(const uint8_t *input, size_t input_size, size_t pos,
 }
 
 static Buffer compress_range(const uint8_t *input, size_t input_size,
-                             size_t start, size_t decoded_size, int lazy) {
+                             size_t start, size_t decoded_size, size_t lazy_limit) {
     if (input_size > INT32_MAX) fail("input exceeds baseline 2 GiB limit");
     if (start > input_size || decoded_size != input_size - start) fail("invalid compression range");
     Buffer output = {0};
@@ -160,7 +160,7 @@ static Buffer compress_range(const uint8_t *input, size_t input_size,
             size_t length, offset;
             find_match(input, input_size, pos, heads, previous, &length, &offset);
             int current_inserted = 0;
-            if (lazy && length && length < MAX_MATCH && pos + 1 < input_size) {
+            if (length && length < lazy_limit && pos + 1 < input_size) {
                 size_t next_length, next_offset;
                 insert_position(input, input_size, pos, heads, previous);
                 current_inserted = 1;
@@ -191,7 +191,7 @@ static Buffer compress_range(const uint8_t *input, size_t input_size,
 }
 
 static Buffer compress_buffer(const uint8_t *input, size_t input_size, int lazy) {
-    return compress_range(input, input_size, 0, input_size, lazy);
+    return compress_range(input, input_size, 0, input_size, lazy ? MAX_MATCH : 0);
 }
 
 typedef struct {
@@ -573,7 +573,7 @@ static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy
 }
 
 static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
-                                      int lazy, int entropy, int split_entropy) {
+                                      size_t lazy_limit, int entropy, int split_entropy) {
     Buffer output = {0};
     reserve(&output, HEADER_SIZE + input_size / 2 + 64);
     append_byte(&output, 'B'); append_byte(&output, 'I');
@@ -589,7 +589,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
         size_t history_start = pos > WINDOW ? pos - WINDOW : 0;
         size_t history_size = pos - history_start;
         Buffer trial = compress_range(input + history_start, history_size + decoded_size,
-                                      history_size, decoded_size, lazy);
+                                      history_size, decoded_size, lazy_limit);
         size_t payload_size = trial.size - HEADER_SIZE;
         Buffer huffman = {0};
         if (entropy) huffman = huffman_encode(trial.data + HEADER_SIZE, payload_size);
@@ -730,7 +730,7 @@ static void write_file(const char *path, const Buffer *buffer) {
 
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|d INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|d INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -739,19 +739,24 @@ int main(int argc, char **argv) {
                     strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "cblinks") == 0;
     int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0 ||
                   strcmp(argv[1], "clbh") == 0 || strcmp(argv[1], "clblink") == 0 ||
-                  strcmp(argv[1], "clblinkh") == 0 || strcmp(argv[1], "clblinks") == 0;
+                  strcmp(argv[1], "clblinkh") == 0 || strcmp(argv[1], "clblinks") == 0 ||
+                  strcmp(argv[1], "clblinksg") == 0;
     int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0 ||
                     strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0;
     is_linked = is_linked || strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0;
+    is_linked = is_linked || strcmp(argv[1], "clblinksg") == 0;
     int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
                      strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 || is_linked;
     int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 ||
                      strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0 ||
-                     strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0;
-    int is_split_entropy = strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0;
+                     strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
+                     strcmp(argv[1], "clblinksg") == 0;
+    int is_split_entropy = strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
+                           strcmp(argv[1], "clblinksg") == 0;
+    int is_gated_lazy = strcmp(argv[1], "clblinksg") == 0;
     int is_decode = strcmp(argv[1], "d") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|d INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|d INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -760,7 +765,9 @@ int main(int argc, char **argv) {
     if (is_decode)
         output = decompress_buffer(input.data, input.size);
     else if (is_linked)
-        output = compress_linked_blocked(input.data, input.size, is_lazy, is_entropy, is_split_entropy);
+        output = compress_linked_blocked(input.data, input.size,
+                                         is_gated_lazy ? 32 : (is_lazy ? MAX_MATCH : 0),
+                                         is_entropy, is_split_entropy);
     else if (is_blocked)
         output = compress_blocked(input.data, input.size, is_lazy, is_entropy);
     else
