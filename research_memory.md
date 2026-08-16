@@ -94,6 +94,11 @@
   dev+research files, so sizes were unchanged, while generating five extra
   Huffman streams reduced encode throughput 8.870% on dev and 6.547% on the
   public suite. Simple first-order distance recency is not useful here.
+- `EXP-0016` work-estimated Huffman lookup eligibility was rejected as
+  inconclusive. On identical streams and five repeats it improved aggregate
+  decode 1.736% on dev and 0.712% on public research, both below the established
+  process-level noise threshold. Direction was broad (21/26 and 13/16 files),
+  but several files still regressed and the policy was reverted without tuning.
 
 ## Dataset-specific observations
 
@@ -355,7 +360,7 @@ rejected by `EXP-0015`):
 5. Block-level entropy-model selection that shares parsed tokens and exact-costs
    every representation, prioritizing broad public-corpus gains.
 
-Current ranking after `EXP-0015`:
+Ranking after `EXP-0015` (first item rejected as inconclusive by `EXP-0016`):
 
 1. Adaptive Huffman lookup eligibility based on stream length and estimated
    tree-walk work; require identical-stream speed evidence on both suites.
@@ -367,6 +372,19 @@ Current ranking after `EXP-0015`:
    every representation, prioritizing broad public-corpus gains.
 5. Joint length/distance classes or conditional models; do not retry plain
    first-order distance deltas without new evidence.
+
+Current ranking after `EXP-0016`:
+
+1. Add an in-process benchmark/library entry point before more sub-3% speed
+   policies; process-per-file timing cannot resolve them reliably.
+2. Parse decisions based on actual split-entropy costs over a bounded horizon,
+   explicitly avoiding the rejected raw 25/33-bit proxy.
+3. Block-level entropy-model selection that shares parsed tokens and exact-costs
+   every representation, prioritizing broad public-corpus gains.
+4. Joint length/distance classes or conditional models; do not retry plain
+   first-order distance deltas without new evidence.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
 
 ## Interactions between components
 
@@ -427,6 +445,10 @@ Current ranking after `EXP-0015`:
   share entropy work. Re-encoding all five streams costs 6.5–8.9% even when
   exact selection rejects every block, repeating the compute lesson from
   EXP-0004 and EXP-0011.
+- `EXP-0016` suggests eligibility based on encoded-bit work may be directionally
+  useful, but the current harness cannot distinguish its 0.7–1.7% aggregate
+  gain from startup/timing noise. Do not tune or revive it until an in-process
+  decoder benchmark exists.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -470,6 +492,9 @@ Current ranking after `EXP-0015`:
 - Per-file medians are summed, so aggregate time weights startup once per file.
   A later in-process/library benchmark is needed before making startup or
   steady-state speed claims.
+- `EXP-0016` is a direct stopping rule for micro-speed work: five repeats on
+  identical streams showed broad but sub-3% gains that remain below harness
+  resolution. Build the in-process benchmark before another lookup threshold.
 - Routine experiments must use staged evaluation: one-repeat new-mode/parent
   screening, then 3–5 repeat validation only for promising candidates. Reuse a
   cached full external audit while tool, platform, corpus hashes, compiler, and
@@ -522,7 +547,8 @@ Current ranking after `EXP-0015`:
   rejected top-two-bit split without a mechanism that addresses table/compute
   cost and the pseudo-text concentration.
 - Huffman lookup should be enabled by estimated decoded bit work, not decoded
-  symbol count alone, to avoid table-build regressions on shallow/skewed trees.
+  symbol count alone, but EXP-0016's small apparent gain is unresolved until
+  startup-free benchmarking exists.
 
 ## Initial development-corpus external Pareto frontier (2026-08-16)
 
