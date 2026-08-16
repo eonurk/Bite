@@ -466,7 +466,8 @@ static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy
     return output;
 }
 
-static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size, int lazy) {
+static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
+                                      int lazy, int entropy) {
     Buffer output = {0};
     reserve(&output, HEADER_SIZE + input_size / 2 + 64);
     append_byte(&output, 'B'); append_byte(&output, 'I');
@@ -484,14 +485,22 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size, i
         Buffer trial = compress_range(input + history_start, history_size + decoded_size,
                                       history_size, decoded_size, lazy);
         size_t payload_size = trial.size - HEADER_SIZE;
-        int use_lz = payload_size < decoded_size;
-        append_byte(&output, (uint8_t)(use_lz ? 4 : 0));
+        Buffer huffman = {0};
+        if (entropy) huffman = huffman_encode(trial.data + HEADER_SIZE, payload_size);
+        uint8_t mode = 0;
+        size_t stored_size = decoded_size;
+        if (payload_size < stored_size) { mode = 4; stored_size = payload_size; }
+        if (entropy && huffman.size < stored_size) { mode = 5; stored_size = huffman.size; }
+        append_byte(&output, mode);
         append_u32le(&output, (uint32_t)decoded_size);
-        append_u32le(&output, (uint32_t)(use_lz ? payload_size : decoded_size));
-        if (use_lz)
+        append_u32le(&output, (uint32_t)stored_size);
+        if (mode == 4)
             append_bytes(&output, trial.data + HEADER_SIZE, payload_size);
+        else if (mode == 5)
+            append_bytes(&output, huffman.data, huffman.size);
         else
             append_bytes(&output, input + pos, decoded_size);
+        free(huffman.data);
         free(trial.data);
         pos += decoded_size;
     }
@@ -551,7 +560,7 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
         uint8_t mode = input[ip++];
         size_t block_decoded = read_u32le(input + ip); ip += 4;
         size_t block_stored = read_u32le(input + ip); ip += 4;
-        if ((mode > 2 && mode != 4) || block_decoded == 0 || block_decoded > BLOCK_SIZE ||
+        if ((mode > 2 && mode != 4 && mode != 5) || block_decoded == 0 || block_decoded > BLOCK_SIZE ||
             block_decoded > decoded_size - output.size || block_stored > input_size - ip)
             fail("invalid block");
         if (mode == 0) {
@@ -565,9 +574,14 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
             Buffer token_stream = huffman_decode(input + ip, block_stored);
             decompress_payload(&output, token_stream.data, token_stream.size, block_decoded, match_base);
             free(token_stream.data);
-        } else {
+        } else if (mode == 4) {
             size_t match_base = output.size > WINDOW ? output.size - WINDOW : 0;
             decompress_payload(&output, input + ip, block_stored, block_decoded, match_base);
+        } else {
+            size_t match_base = output.size > WINDOW ? output.size - WINDOW : 0;
+            Buffer token_stream = huffman_decode(input + ip, block_stored);
+            decompress_payload(&output, token_stream.data, token_stream.size, block_decoded, match_base);
+            free(token_stream.data);
         }
         ip += block_stored;
     }
@@ -599,22 +613,26 @@ static void write_file(const char *path, const Buffer *buffer) {
 
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|d INPUT OUTPUT\n");
-        fprintf(stderr, "  c/cl: v1; cb/clb: v2; *h: Huffman; *link: linked history; d: decode\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
     int is_greedy = strcmp(argv[1], "c") == 0 || strcmp(argv[1], "cb") == 0 ||
-                    strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "cblink") == 0;
+                    strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "cblink") == 0 ||
+                    strcmp(argv[1], "cblinkh") == 0;
     int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0 ||
-                  strcmp(argv[1], "clbh") == 0 || strcmp(argv[1], "clblink") == 0;
-    int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0;
+                  strcmp(argv[1], "clbh") == 0 || strcmp(argv[1], "clblink") == 0 ||
+                  strcmp(argv[1], "clblinkh") == 0;
+    int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0 ||
+                    strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0;
     int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
                      strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 || is_linked;
-    int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0;
+    int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 ||
+                     strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0;
     int is_decode = strcmp(argv[1], "d") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|d INPUT OUTPUT\n");
-        fprintf(stderr, "  c/cl: v1; cb/clb: v2; *h: Huffman; *link: linked history; d: decode\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
     Buffer input = read_file(argv[2]);
@@ -622,7 +640,7 @@ int main(int argc, char **argv) {
     if (is_decode)
         output = decompress_buffer(input.data, input.size);
     else if (is_linked)
-        output = compress_linked_blocked(input.data, input.size, is_lazy);
+        output = compress_linked_blocked(input.data, input.size, is_lazy, is_entropy);
     else if (is_blocked)
         output = compress_blocked(input.data, input.size, is_lazy, is_entropy);
     else

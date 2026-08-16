@@ -51,7 +51,8 @@ with tempfile.TemporaryDirectory() as directory:
     sources = FILES + edge_files
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:
         hashes = list(executor.map(digest, sources))
-        modes = ("c", "cl", "cb", "clb", "cbh", "clbh", "cblink", "clblink")
+        modes = ("c", "cl", "cb", "clb", "cbh", "clbh", "cblink", "clblink",
+                 "cblinkh", "clblinkh")
         tasks = [(mode, index, source, hashes[index], temp)
                  for mode in modes for index, source in enumerate(sources)]
         list(executor.map(roundtrip, tasks))

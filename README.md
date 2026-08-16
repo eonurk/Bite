@@ -37,6 +37,8 @@ representation is smaller than both raw and plain-LZ alternatives.
 Experimental modes `cblink` and `clblink` seed each block's match finder with
 up to 65,535 prior decoded bytes. Linked LZ blocks use mode 4 and may reference
 that bounded history; raw blocks remain valid history for following blocks.
+Modes `cblinkh` and `clblinkh` additionally exact-select Huffman-coded linked
+token payloads (mode 5), counting the serialized tree in the decision.
 
 ## Staged experiments
 
