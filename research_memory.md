@@ -122,6 +122,13 @@
   but several files still regressed and the policy was reverted without tuning.
   This was a measurement rejection, not an algorithmic failure; unchanged
   `EXP-0017` later retained it after startup-free repeated evidence.
+- `EXP-0019` gating the bounded parser on whether the parent split-Huffman
+  representation beats raw storage was rejected. It preserved every observed
+  compressed stream and improved five-repeat dev encode throughput 4.239%, but
+  random, pseudo-text, and RGB generated fixtures contributed 64.6 ms saved
+  against only 59.1 ms aggregate. Public research encode throughput regressed
+  0.578%. This gate skips work mainly on synthetic/raw-selected blocks rather
+  than reducing the parser's broad compressible-data cost.
 
 ## Dataset-specific observations
 
@@ -441,6 +448,20 @@ Current ranking after `EXP-0018`:
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
+Ranking after `EXP-0019`:
+
+1. Iterate the optimized parse's entropy model once and exact-select it against
+   EXP-0018, testing whether model/parse convergence gives broad ratio gains.
+2. Share parent/optimized token demultiplexing, Huffman statistics, and match
+   precomputation structurally; do not substitute another corpus-sensitive
+   raw-block work gate.
+3. Add alternative match distances or joint length/distance costs to the DP;
+   current choices use only the longest match's distance.
+4. Block-level entropy-model selection that reuses parsed streams and exact
+   costs every representation.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -513,6 +534,11 @@ Current ranking after `EXP-0018`:
   Exact selection protects size, but not the extra all-position match search,
   DP, second token stream, or five-tree entropy encode that drive its 70–74%
   encode regression.
+- `EXP-0019` shows that parent representation competitiveness is not a broad
+  proxy for avoidable parser work. It cheaply removes DP from raw-selected
+  blocks, but observed savings concentrate in three generated fixtures and do
+  not reproduce on Calgary+Large. Parser acceleration must share or reduce work
+  on compressible blocks, where EXP-0018 spends most of its time.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -550,6 +576,10 @@ Current ranking after `EXP-0018`:
   encoder was 18.8% faster. Five repeats instead measured an 11.3% slowdown,
   reinforcing that one-repeat screens decide whether to validate size/correctness
   signals, not whether to credit modest timing changes.
+- `EXP-0019` research screening suggested a 6.6% identical-stream encode gain,
+  while five-repeat validation measured a 0.6% regression. Even apparently
+  large one-repeat process-timing effects need validation when no size signal
+  independently supports the candidate.
 - `EXP-0012` parent and candidate compressed streams were byte-identical, yet
   their measured decode rates differed -2.772% over five repeats. This directly
   bounds such process-level decode deltas as noise, not decoder effects.
@@ -616,7 +646,8 @@ Current ranking after `EXP-0018`:
 - A parser using actual split-stream code costs over a bounded horizon may
   improve on both longest-match lazy parsing and the rejected raw-token proxy.
   EXP-0018 confirms this; open questions are model iteration, alternative
-  distances, and how much computation can be shared or avoided.
+  distances, and how much computation can be shared or avoided. EXP-0019 rules
+  out parent-split-versus-raw gating as a broadly useful avoidance mechanism.
 - Distance modeling may need joint length/distance classes or recency ranks;
   plain modulo deltas between consecutive distances won no tested block.
 - Literal context may still be useful only if its coding tables are shared or

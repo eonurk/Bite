@@ -1,0 +1,163 @@
+{
+  "benchmark_schema": 1,
+  "timestamp_utc": "2026-08-16T09:40:43Z",
+  "stage": "screen",
+  "repeats": 1,
+  "platform": "Darwin Onurs-MacBook-Pro.local 25.4.0 Darwin Kernel Version 25.4.0: Thu Mar 19 19:32:36 PDT 2026; root:xnu-12377.101.15~1/RELEASE_ARM64_T8103 arm64",
+  "platform_compat": "Darwin 25.4.0 Darwin Kernel Version 25.4.0: Thu Mar 19 19:32:36 PDT 2026; root:xnu-12377.101.15~1/RELEASE_ARM64_T8103 arm64",
+  "git_head": "93ec27e771d0441170b8278e233f8b2c387c175c",
+  "corpus_dir": "/Users/onur-lumc/Desktop/Bite/corpus/dev",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "bite_sha256": "cdc800536183f9667382638a96ce94ddb48e273d5616d4421450128b71b00869",
+  "tools": {
+    "bite-link-split-optimal": "version unavailable",
+    "bite-link-split-optimal-gated": "version unavailable",
+    "gzip-1": "Apple gzip 479",
+    "gzip-9": "Apple gzip 479",
+    "zstd-1": "*** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***",
+    "zstd-3": "*** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***",
+    "zstd-6": "*** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***",
+    "zstd-19": "*** Zstandard CLI (64-bit) v1.5.7, by Yann Collet ***",
+    "brotli-1": "brotli 1.2.0",
+    "brotli-6": "brotli 1.2.0",
+    "brotli-11": "brotli 1.2.0",
+    "xz-1": "xz (XZ Utils) 5.8.2",
+    "xz-6": "xz (XZ Utils) 5.8.2",
+    "xz-9": "xz (XZ Utils) 5.8.2",
+    "lz4": "*** lz4 v1.10.0 64-bit multithread, by Yann Collet ***"
+  },
+  "files": [
+    {
+      "path": "canterbury/alice29.txt",
+      "bytes": 152089,
+      "sha256": "7467306ee0feed4971260f3c87421154a05be571d944e9cb021a5713700c38f0"
+    },
+    {
+      "path": "canterbury/asyoulik.txt",
+      "bytes": 125179,
+      "sha256": "eaa3526fe53859f34ecdf255712f9ecf0b2c903451d4755b2edaa2e2599cb0fc"
+    },
+    {
+      "path": "canterbury/cp.html",
+      "bytes": 24603,
+      "sha256": "e0cd21cef5b6c4069461e949be100080c3ce887de6f1dd8626c480528efaaf61"
+    },
+    {
+      "path": "canterbury/fields.c",
+      "bytes": 11150,
+      "sha256": "85d73e354cc50cec76cb5a50537cf8dc035f8cbb8480f9e1cbe2f7d6c23393c7"
+    },
+    {
+      "path": "canterbury/grammar.lsp",
+      "bytes": 3721,
+      "sha256": "1b0805dfc0ae706b35aac2bb4e15f02485efd24dda5dbd29de7b2f84d1a88c15"
+    },
+    {
+      "path": "canterbury/kennedy.xls",
+      "bytes": 1029744,
+      "sha256": "9af47239ca29dfe20e633f80bbbb9a4cc9783d0803d7b2b5626f42e4c3790420"
+    },
+    {
+      "path": "canterbury/lcet10.txt",
+      "bytes": 426754,
+      "sha256": "5314ba1dbb03f471df88bec6cd120a938ef60d0fd3511c5c1dce61bf7463245f"
+    },
+    {
+      "path": "canterbury/plrabn12.txt",
+      "bytes": 481861,
+      "sha256": "07e2e0b461af78c7c647cb53dab39de560198e16f799b4516eccf0fbd69f764c"
+    },
+    {
+      "path": "canterbury/ptt5",
+      "bytes": 513216,
+      "sha256": "0ec3a75089bb52342813496b17e51377bc9eba3cb519a444d67025354841d650"
+    },
+    {
+      "path": "canterbury/sum",
+      "bytes": 38240,
+      "sha256": "ee5733cd76ecc2f9d8ff156adc3c02a7a851051dcf43a2d56ff4ee4ff606bdb3"
+    },
+    {
+      "path": "canterbury/xargs.1",
+      "bytes": 4227,
+      "sha256": "c58aeb5d2d1e12751d47e7412b45784405fc30a5671b03d480fa05776e183619"
+    },
+    {
+      "path": "generated/binary_data/random.bin",
+      "bytes": 524288,
+      "sha256": "5ba21737d5c379d76b478a478de5b883b13babf7f9146ee88d86135b86b67ff3"
+    },
+    {
+      "path": "generated/executables/pseudo_text.bin",
+      "bytes": 600000,
+      "sha256": "dd1a6db79e6d1976cc9c93d5f562bbc6a720de9b7e19689e4bb8ca5b005d523a"
+    },
+    {
+      "path": "generated/images_raw/gradient.rgb",
+      "bytes": 1179648,
+      "sha256": "8da59666b103c1dc42799f68cae94719064fcddbbc3267efaa044979c7bf2415"
+    },
+    {
+      "path": "generated/json/events.json",
+      "bytes": 862740,
+      "sha256": "614c2b077d5a2bd1809e84a558e0e7dbe989cf5f0ebaf55f7e5f1f771bdd11d3"
+    },
+    {
+      "path": "generated/mixed/records.bin",
+      "bytes": 59446,
+      "sha256": "5cb60232b3cf286ff274f29488be75836a415a0a1886736f0498ee38198d0bb5"
+    },
+    {
+      "path": "generated/scientific_data/readings.f64",
+      "bytes": 800000,
+      "sha256": "2550e6ca1481696e3c71bf9bf3f2c8e41e58cb5d7671e09505a38e2901946078"
+    },
+    {
+      "path": "generated/small_files/small_0000.bin",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "generated/small_files/small_0001.bin",
+      "bytes": 1,
+      "sha256": "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"
+    },
+    {
+      "path": "generated/small_files/small_0017.bin",
+      "bytes": 17,
+      "sha256": "9710e7c31c9be2ed83da26dd13dd59d7e40e2a811f67e0a81a93cdad936e3f6b"
+    },
+    {
+      "path": "generated/small_files/small_0103.bin",
+      "bytes": 103,
+      "sha256": "828dfa0cfc2fbabc90634a349362a8c4f0a1163da560fe2e5d155b6cf461bdb5"
+    },
+    {
+      "path": "generated/small_files/small_1024.bin",
+      "bytes": 1024,
+      "sha256": "b54e72e83904b84eb645c6c4b7a55f73b85871cdc9a74645979cd7c1be411b40"
+    },
+    {
+      "path": "generated/small_files/small_4096.bin",
+      "bytes": 4096,
+      "sha256": "695fb69684bbdf7f0df73d0cbcf84b46104edfe6504fd3a1dcbd340f628f8d8a"
+    },
+    {
+      "path": "generated/source_code/generated.c",
+      "bytes": 496390,
+      "sha256": "1d9daefd60a638508d78a2777318402b2c97fb99001b28916f0fa9f7966b5739"
+    },
+    {
+      "path": "generated/text/research_notes.txt",
+      "bytes": 864930,
+      "sha256": "31a1c1a0bd55a4493443c70ee3344a245e10fef38fc71c4f07704324bb31c36c"
+    },
+    {
+      "path": "generated/xml/catalog.xml",
+      "bytes": 779415,
+      "sha256": "3159c574aed695b1f667c1bfd148669bfc7ad99f59d582f59a64ab19fe11dd7a"
+    }
+  ],
+  "cached_external_from": "/Users/onur-lumc/Desktop/Bite/results/exp-0004",
+  "external_cache_fingerprint": "774859d9313fc54b680461bf1d2d7dd0bc7d52a19045611aa56ffe6e7a9fef55"
+}
