@@ -7,11 +7,15 @@ CACHE ?= results/exp-0004
 LABEL ?= staged
 CODECS ?=
 
-all: bin/bite
+all: bin/bite bin/bite-bench
 
 bin/bite: src/bite.c
 	@mkdir -p bin
 	$(CC) $(CFLAGS) $< -o $@
+
+bin/bite-bench: src/bite_bench.c src/bite.c
+	@mkdir -p bin
+	$(CC) $(CFLAGS) -Wno-unused-function src/bite_bench.c -o $@
 
 corpus:
 	python3 scripts/generate_corpus.py

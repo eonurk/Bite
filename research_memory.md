@@ -66,6 +66,13 @@
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
   have pinned SHA-256 hashes, and the suite has no exact overlap with dev or
   Silesia. Silesia remains excluded from tuning.
+- A complementary in-process runner now loads each file once, performs one
+  untimed warm-up, and records per-file medians across repeated encode/decode
+  calls with direct byte comparisons every time. At 20 repeats, retained
+  `clblinksdf` measures 29.94 MB/s encode and 277.29 MB/s decode on dev, and
+  14.80/196.73 MB/s on public research. Compressed totals exactly match the
+  process harness. The runner deliberately leaves RSS/startup/external audits
+  to the existing process harness.
 
 ## What consistently fails
 
@@ -495,6 +502,10 @@ Current ranking after `EXP-0016`:
 - `EXP-0016` is a direct stopping rule for micro-speed work: five repeats on
   identical streams showed broad but sub-3% gains that remain below harness
   resolution. Build the in-process benchmark before another lookup threshold.
+- The new in-process baseline exposes the prefix lookup's steady-state effect:
+  versus `dslow`, decode is 47.7% faster on dev (277.29 vs 187.73 MB/s) and
+  68.3% faster on public research (196.73 vs 116.86 MB/s). The earlier process
+  measurements substantially understated decoder work by including startup.
 - Routine experiments must use staged evaluation: one-repeat new-mode/parent
   screening, then 3–5 repeat validation only for promising candidates. Reuse a
   cached full external audit while tool, platform, corpus hashes, compiler, and

@@ -906,6 +906,7 @@ static void write_file(const char *path, const Buffer *buffer) {
     if (fclose(file) != 0) fail_errno(path);
 }
 
+#ifndef BITE_NO_MAIN
 int main(int argc, char **argv) {
     if (argc != 4) {
         fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|d|dslow INPUT OUTPUT\n");
@@ -965,3 +966,4 @@ int main(int argc, char **argv) {
     free(input.data);
     return 0;
 }
+#endif

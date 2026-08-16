@@ -80,6 +80,18 @@ Corpus files from the Canterbury Corpus site. Archive hashes are pinned by the
 fetch script. Silesia is observed hold-out evidence and must not be used for
 routine tuning.
 
+For small speed effects, use the complementary startup-free runner. It reads
+each file once, performs one untimed warm-up, then reports the median of repeated
+in-process encode/decode calls with exact comparisons on every repetition:
+
+```sh
+python3 scripts/benchmark_inprocess.py --repeats 20 \
+  --codecs bite-link-split-delta-filter --label inprocess-baseline
+```
+
+This runner does not replace the process harness: peak RSS, startup latency,
+binary size, and external-codec audits remain the process harness's job.
+
 Screen and validation runs reuse external rows from `results/exp-0004` by
 default. The cache is accepted only if platform, corpus paths/sizes/hashes, and
 every external tool version match. Metadata records the cache source, Git head,
