@@ -65,6 +65,21 @@ make benchmark-validate CODECS="bite-new bite-parent" LABEL=exp-XXXX
 make benchmark
 ```
 
+The original `corpus/dev` suite remains frozen for longitudinal comparison.
+Ratio-changing candidates must also pass a separate public research suite:
+
+```sh
+make research-corpus
+python3 scripts/benchmark.py --stage screen --repeats 1 \
+  --corpus-dir corpus/research --codecs bite-new bite-parent \
+  --label exp-XXXX-research-screen
+```
+
+The research suite contains 13 non-duplicate Calgary files and all three Large
+Corpus files from the Canterbury Corpus site. Archive hashes are pinned by the
+fetch script. Silesia is observed hold-out evidence and must not be used for
+routine tuning.
+
 Screen and validation runs reuse external rows from `results/exp-0004` by
 default. The cache is accepted only if platform, corpus paths/sizes/hashes, and
 every external tool version match. Metadata records the cache source, Git head,

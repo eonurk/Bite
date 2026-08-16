@@ -61,6 +61,11 @@
   middle, and end. A 1.2x gate reduces transformed parses from 52 to 36 while
   retaining all 34 winning dev blocks and identical compressed streams. Five-
   repeat encode throughput improves 15.261% to 20.96 MB/s.
+- Routine candidate evaluation now preserves the original frozen dev corpus and
+  adds a separately addressable 13,787,888-byte public research suite: 13
+  non-duplicate Calgary files plus the three-file Large corpus. Both archives
+  have pinned SHA-256 hashes, and the suite has no exact overlap with dev or
+  Silesia. Silesia remains excluded from tuning.
 
 ## What consistently fails
 
@@ -79,6 +84,11 @@
   parent but reduced encode throughput 7.132%. The larger hot head table and
   ring predecessor indirection outweighed saved history insertion. Generated
   source improved 2.15%, but almost every large file slowed.
+- `EXP-0014` a local raw-token-density lazy rule was rejected by the new public
+  research screen. It appeared 44 bytes smaller on dev, but grew 1,407 bytes
+  on the research suite, regressed 12 of 16 files, and reduced encode throughput
+  6.723%. A one-step 25-bit match versus 33-bit literal-plus-match proxy does
+  not represent downstream entropy cost or parsing consequences.
 
 ## Dataset-specific observations
 
@@ -112,6 +122,11 @@
   67,070,271 bytes at 19.06 MB/s encode and 151.80 MB/s decode. It is dominated
   in both size and speed by zstd-3 (66,216,569 bytes), Brotli-6 (58,441,670),
   and xz-1 (58,717,040). The development frontier does not generalize.
+- The EXP-0014 distribution shift is directionally decisive despite small
+  aggregate byte changes: dev splits evenly at 8 improvements / 8 regressions,
+  while the separate Calgary+Large suite has 4 improvements / 12 regressions.
+  The apparent dev win came mainly from generated XML/JSON; public books and
+  text generally worsened.
 - Huffman token coding is broadly effective on compressible categories:
   Canterbury -22.057%, pseudo-executable -28.925%, JSON -13.918%, source
   -20.906%, repetitive text -27.784%, and XML -21.684% versus v2 lazy. It has
@@ -133,7 +148,9 @@
    match for a materially better next match. Bounded single-hash chains also
    limit match choice.
    `EXP-0008` shows a fixed length gate recovers some search cost, but its
-   dataset interaction is sharp and a better cost-aware gate remains open.
+   dataset interaction is sharp. `EXP-0014` shows a local raw-token density
+   proxy does not generalize; actual entropy costs or a longer parsing horizon
+   are required.
 3. V1 stores a four-byte predecessor per input byte and has a 2 GiB limit. V2
    bounds match-state allocation to 64 KiB and cuts measured encoder RSS by
    44.8%, but file I/O and final output are still whole-file buffers rather than
@@ -303,7 +320,8 @@ Ranking after `EXP-0012` (first item completed by retained `EXP-0013`):
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, but
    only after profiling confirms the wider head table caused `EXP-0012`.
 
-Current ranking after `EXP-0013` and the first Silesia audit:
+Ranking after `EXP-0013` and the first Silesia audit (first item rejected by
+`EXP-0014`):
 
 1. Cost-aware lazy gating using token/entropy estimates instead of a fixed
    match-length threshold, targeting a broadly useful speed/ratio point.
@@ -315,6 +333,20 @@ Current ranking after `EXP-0013` and the first Silesia audit:
    match length, starting with a bounded one-step cost comparison.
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
+
+Current ranking after `EXP-0014` and the public research-suite addition:
+
+1. Distance recency or length/distance correlation modeling within the split
+   token representation, with complete model costs counted and dual-corpus
+   screening.
+2. Adaptive Huffman lookup eligibility based on stream length and estimated
+   tree-walk work; require identical-stream speed evidence on both suites.
+3. Parse decisions based on actual split-entropy costs over a bounded horizon,
+   explicitly avoiding the rejected raw 25/33-bit proxy.
+4. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+5. Block-level entropy-model selection that shares parsed tokens and exact-costs
+   every representation, prioritizing broad public-corpus gains.
 
 ## Interactions between components
 
@@ -367,6 +399,10 @@ Current ranking after `EXP-0013` and the first Silesia audit:
   smaller; Canterbury grows only 0.074%, and other categories are size-neutral.
   Encode throughput improves broadly, including Canterbury 10.571%, JSON
   11.645%, source 20.444%, text 37.137%, and XML 8.960%.
+- `EXP-0014` confirms that local parsing proxies interact with distribution.
+  Its stricter token-density rule slightly helped generated XML/JSON and public
+  E. coli, but generally hurt public books/text. Parser decisions must account
+  for more than immediate raw token count.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -414,6 +450,11 @@ Current ranking after `EXP-0013` and the first Silesia audit:
   screening, then 3–5 repeat validation only for promising candidates. Reuse a
   cached full external audit while tool, platform, corpus hashes, compiler, and
   benchmark method remain unchanged; refresh periodically or after changes.
+- Ratio-changing candidates now require screens on both frozen `corpus/dev` and
+  pinned `corpus/research`. The research suite is training/validation evidence,
+  not an untouched hold-out; it may guide decisions and can itself eventually
+  overfit. Periodic audits must therefore use a different locked corpus. Silesia
+  is already observed and remains excluded from routine optimization.
 - `EXP-0005` validated this workflow: the two-mode screen took 6.9 seconds and
   the three-repeat validation 6.7 seconds while 13 external codec summaries
   were fingerprint-validated from `EXP-0004`. Fresh timing remained serial.
@@ -448,8 +489,8 @@ Current ranking after `EXP-0013` and the first Silesia audit:
   generated floating-point and RGB data, but its apparent Pareto benefit fails
   to generalize to Silesia. Other genuinely independent raw/scientific evidence
   would be needed before reviving that claim.
-- A cost-aware lazy gate may avoid the generated-source ratio regression of the
-  fixed 32-byte policy while retaining its broad encode-speed gain.
+- A parser using actual split-stream code costs over a bounded horizon may
+  improve on both longest-match lazy parsing and the rejected raw-token proxy.
 - Literal context may still be useful only if its coding tables are shared or
   much cheaper than four independent serialized Huffman trees; do not retry the
   rejected top-two-bit split without a mechanism that addresses table/compute

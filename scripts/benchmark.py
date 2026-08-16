@@ -129,6 +129,8 @@ def main() -> None:
     parser.add_argument("--repeats", type=int)
     parser.add_argument("--codecs", nargs="*", help="optional codec-name subset")
     parser.add_argument("--label", default="baseline")
+    parser.add_argument("--corpus-dir", type=Path, default=ROOT / "corpus" / "dev",
+                        help="corpus root (default: corpus/dev)")
     parser.add_argument("--baseline-cache", type=Path,
                         help="reuse fingerprint-matched external rows from a prior results directory")
     args = parser.parse_args()
@@ -147,14 +149,18 @@ def main() -> None:
     missing = [c.executable for c in selected if not (Path(c.executable).exists() or shutil.which(c.executable))]
     if missing:
         raise SystemExit(f"missing tools: {', '.join(missing)}")
-    files = sorted(p for p in (ROOT / "corpus" / "dev").rglob("*") if p.is_file() and p.name != "MANIFEST.json")
+    corpus_dir = args.corpus_dir
+    if not corpus_dir.is_absolute():
+        corpus_dir = ROOT / corpus_dir
+    corpus_dir = corpus_dir.resolve()
+    files = sorted(p for p in corpus_dir.rglob("*") if p.is_file() and p.name != "MANIFEST.json")
     if not files:
-        raise SystemExit("development corpus is empty; run make corpus")
+        raise SystemExit(f"corpus is empty: {corpus_dir}")
 
     platform = subprocess.check_output(["uname", "-a"], text=True).strip()
     with concurrent.futures.ThreadPoolExecutor() as executor:
         digests = list(executor.map(digest, files))
-    file_metadata = [{"path": str(p.relative_to(ROOT / "corpus" / "dev")), "bytes": p.stat().st_size,
+    file_metadata = [{"path": str(p.relative_to(corpus_dir)), "bytes": p.stat().st_size,
                       "sha256": value.hex()} for p, value in zip(files, digests)]
     source_digests = dict(zip(files, digests))
     tools = {c.name: version(c.executable) for c in selected}
@@ -194,6 +200,7 @@ def main() -> None:
         "platform": platform,
         "platform_compat": compatible_platform(platform),
         "git_head": git_head,
+        "corpus_dir": str(corpus_dir),
         "compiler": version("cc"),
         "bite_sha256": digest(bite_path).hex() if bite_path.exists() else None,
         "tools": tools,
@@ -229,7 +236,7 @@ def main() -> None:
                 enc = statistics.median(encode_times)
                 dec = statistics.median(decode_times)
                 rows.append({
-                    "codec": codec.name, "file": str(source.relative_to(ROOT / "corpus" / "dev")),
+                    "codec": codec.name, "file": str(source.relative_to(corpus_dir)),
                     "original_size_bytes": size, "compressed_size_bytes": compressed_sizes[0],
                     "bits_per_byte": 8 * compressed_sizes[0] / size if size else 0,
                     "compression_ratio": size / compressed_sizes[0] if compressed_sizes[0] else 0,
