@@ -82,6 +82,14 @@
   0.498% to 4,133,447 bytes (14/16 improve, none regress). Encode throughput
   falls 39.8–42.3% and encoder RSS rises 7.2–11.3% versus EXP-0018. It is a
   useful convergence result, but remains externally dominated on dev.
+- `EXP-0021` retains internal maximum-ratio mode `clblinksopt2d`. For each of
+  the DP's eight candidate lengths, it chooses the lowest modeled-cost distance
+  among up to 64 hash-chain matches. Dev size falls another 0.737% to 2,270,290
+  bytes (15/26 improve, none regress); public research falls 0.767% to 4,101,724
+  bytes with all 16 files improving. Encode throughput falls 68.1% on dev and
+  47.6% on research, while RSS rises 62.4% and 11.3%. Startup-free dev decode
+  changes only -0.377%; format and binary size are unchanged. The mode remains
+  externally dominated on dev.
 - Routine candidate evaluation now preserves the original frozen dev corpus and
   adds a separately addressable 13,787,888-byte public research suite: 13
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
@@ -204,7 +212,9 @@
    proxy does not generalize; actual entropy costs or a longer parsing horizon
    are required. `EXP-0018` demonstrates that block-derived field costs plus a
    whole-block bounded DP produce broad ratio gains, at substantial compute and
-   memory cost.
+   memory cost. `EXP-0021` further shows that using only the longest match's
+   distance leaves broad ratio on the table; length-specific entropy-costed
+   distances help, but exhaustive chain evaluation is too slow and memory-heavy.
 3. V1 stores a four-byte predecessor per input byte and has a 2 GiB limit. V2
    bounds match-state allocation to 64 KiB and cuts measured encoder RSS by
    44.8%, but file I/O and final output are still whole-file buffers rather than
@@ -483,6 +493,20 @@ Ranking after `EXP-0020`:
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
+Ranking after `EXP-0021`:
+
+1. Share match enumeration/precomputation across EXP-0020 and EXP-0021 passes,
+   preserving costed-distance choices while removing the extra full chain scan
+   and large per-position offset table.
+2. Block-level entropy-model selection that reuses parsed streams and exact
+   costs every representation.
+3. Test a principled convergence/stopping signal before any further parse; do
+   not perform an iteration-count or chain-depth sweep.
+4. Explore joint length/distance classes only if they can reuse EXP-0021's
+   enumerated matches rather than adding another representation pass.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -565,6 +589,12 @@ Ranking after `EXP-0020`:
   with broad real-corpus coverage, but costs 66–73% more encode time. The
   diminishing gain relative to EXP-0018's 2.5–3.6% first pass argues for shared
   machinery or an evidence-based stopping rule rather than blind iteration.
+- `EXP-0021` establishes a second independent parsing weakness: match length
+  and distance must be optimized jointly under field costs. Every public
+  research file improves, so this is not a synthetic-data effect. Its third
+  parser pass, full comparison of all visited matches, and eight offsets per
+  position explain the severe encode/RSS cost; the next work should preserve
+  choices while sharing enumeration, not weaken the model with a heuristic.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -609,6 +639,10 @@ Ranking after `EXP-0020`:
 - `EXP-0012` parent and candidate compressed streams were byte-identical, yet
   their measured decode rates differed -2.772% over five repeats. This directly
   bounds such process-level decode deltas as noise, not decoder effects.
+- EXP-0021 process validation measured dev decode -10.4%, while its screen had
+  moved in the opposite direction and public validation was -0.5%. A three-
+  repeat in-process control measured only -0.377% (280.09 versus 281.15 MB/s),
+  so the process result is rejected as startup/scheduling noise.
 - Per-file medians are summed, so aggregate time weights startup once per file.
   A later in-process/library benchmark is needed before making startup or
   steady-state speed claims.
@@ -625,6 +659,9 @@ Ranking after `EXP-0020`:
 - EXP-0020 increases the production binary from 91,000 to 92,424 bytes
   (+1.565%) and compounds parser time. Its ordinary mode-6 output adds no
   decoder representation, so the code-size increase is encoder/CLI machinery.
+- EXP-0021 leaves the measured production binary at 92,424 bytes despite its
+  source expansion. The mode still carries substantial runtime and transient
+  memory cost, which binary size alone does not capture.
 - The new in-process baseline exposes the prefix lookup's steady-state effect:
   versus `dslow`, decode is 47.7% faster on dev (277.29 vs 187.73 MB/s) and
   68.3% faster on public research (196.73 vs 116.86 MB/s). The earlier process
@@ -684,6 +721,9 @@ Ranking after `EXP-0020`:
   out parent-split-versus-raw gating as a broadly useful avoidance mechanism.
 - Distance modeling may need joint length/distance classes or recency ranks;
   plain modulo deltas between consecutive distances won no tested block.
+  EXP-0021 confirms that length-specific selection among existing distances is
+  broadly useful; the open problem is retaining it without exhaustive extra
+  search and storage.
 - Literal context may still be useful only if its coding tables are shared or
   much cheaper than four independent serialized Huffman trees; do not retry the
   rejected top-two-bit split without a mechanism that addresses table/compute
@@ -715,3 +755,6 @@ does not override the Silesia conclusion; no held-out data informed EXP-0018.
 EXP-0020 reaches 2,287,142 bytes at 3.58 MB/s. Cached xz-6 is both smaller
 (2,242,316 bytes) and faster (5.82 MB/s), so EXP-0020 is retained only as Bite's
 internal maximum-ratio endpoint and is not an external Pareto point.
+EXP-0021 reaches 2,270,290 bytes at 1.18 MB/s. It closes most of Bite's dev size
+gap to xz-6 but remains 1.25% larger and about 80% slower, so it is likewise an
+internal endpoint rather than an external Pareto point.
