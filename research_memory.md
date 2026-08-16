@@ -90,6 +90,12 @@
   47.6% on research, while RSS rises 62.4% and 11.3%. Startup-free dev decode
   changes only -0.377%; format and binary size are unchanged. The mode remains
   externally dominated on dev.
+- `EXP-0022` retains memory-frontier mode `clblinksopt2df`. It generates streams
+  byte-identical to EXP-0021 on all 43 observed files, but enumerates candidates
+  during the backward DP and stores one selected offset rather than eight per
+  position. Three-repeat encoder RSS falls 11.931% on dev and 10.253% on public
+  research. Encode changes -0.091%/+0.297%, both noise; size, decode format, and
+  binary behavior are unchanged.
 - Routine candidate evaluation now preserves the original frozen dev corpus and
   adds a separately addressable 13,787,888-byte public research suite: 13
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
@@ -507,6 +513,20 @@ Ranking after `EXP-0021`:
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
+Ranking after `EXP-0022`:
+
+1. Share predecessor-chain construction and longest-match precomputation across
+   all three optimized passes. EXP-0022 removes the offset table but each pass
+   still rebuilds identical match structure.
+2. Block-level entropy-model selection that reuses parsed streams and exact
+   costs every representation.
+3. Test a principled convergence/stopping signal before any further parse; do
+   not perform an iteration-count or chain-depth sweep.
+4. Explore joint length/distance classes only if they reuse the existing match
+   enumeration rather than adding another representation pass.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -595,6 +615,11 @@ Ranking after `EXP-0021`:
   parser pass, full comparison of all visited matches, and eight offsets per
   position explain the severe encode/RSS cost; the next work should preserve
   choices while sharing enumeration, not weaken the model with a heuristic.
+- `EXP-0022` separates EXP-0021's memory and compute costs. Fusing candidate
+  enumeration into the DP removes about 0.9–1.1 MB of measured peak RSS with
+  identical streams, but encode time is unchanged. The per-position offset
+  table caused memory overhead; repeated full candidate comparisons and three
+  independently built match structures dominate runtime.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -662,6 +687,9 @@ Ranking after `EXP-0021`:
 - EXP-0021 leaves the measured production binary at 92,424 bytes despite its
   source expansion. The mode still carries substantial runtime and transient
   memory cost, which binary size alone does not capture.
+- EXP-0022's additional control mode makes the measured binary 92,456 bytes,
+  only 32 bytes larger than EXP-0021. Its meaningful improvement is transient
+  encoder memory, not code size.
 - The new in-process baseline exposes the prefix lookup's steady-state effect:
   versus `dslow`, decode is 47.7% faster on dev (277.29 vs 187.73 MB/s) and
   68.3% faster on public research (196.73 vs 116.86 MB/s). The earlier process
@@ -724,6 +752,8 @@ Ranking after `EXP-0021`:
   EXP-0021 confirms that length-specific selection among existing distances is
   broadly useful; the open problem is retaining it without exhaustive extra
   search and storage.
+- EXP-0022 resolves the storage half of that problem without changing output;
+  sharing the invariant match structure across model iterations remains open.
 - Literal context may still be useful only if its coding tables are shared or
   much cheaper than four independent serialized Huffman trees; do not retry the
   rejected top-two-bit split without a mechanism that addresses table/compute
@@ -758,3 +788,6 @@ internal maximum-ratio endpoint and is not an external Pareto point.
 EXP-0021 reaches 2,270,290 bytes at 1.18 MB/s. It closes most of Bite's dev size
 gap to xz-6 but remains 1.25% larger and about 80% slower, so it is likewise an
 internal endpoint rather than an external Pareto point.
+EXP-0022 preserves EXP-0021's size and effective speed while reducing encoder
+RSS from 7,553,024 to 6,651,904 bytes on dev. It supersedes EXP-0021 on Bite's
+internal size/speed/memory frontier, but remains externally dominated by xz-6.
