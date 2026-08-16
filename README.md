@@ -44,6 +44,9 @@ Modes `cblinks` and `clblinks` also consider a field-split entropy payload
 distance-high, and lengths; all five stream headers and trees are counted.
 Mode `clblinksg` uses the same mode-6 representation but limits lazy lookahead
 to current matches shorter than 32 bytes.
+Mode `clblinksd` additionally considers mode 7: a reversible byte-delta at one
+adaptively selected stride from 1–8, followed by independent LZ and field-split
+entropy coding. The stride byte and complete transformed payload are counted.
 
 ## Staged experiments
 

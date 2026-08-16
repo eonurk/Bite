@@ -535,6 +535,47 @@ static void split_huffman_decode(Buffer *output, const uint8_t *input,
     for (unsigned i = 0; i < 5; ++i) free(streams[i].data);
 }
 
+static uint64_t byte_concentration(const uint8_t *input, size_t input_size,
+                                   size_t stride) {
+    uint32_t frequencies[256] = {0};
+    for (size_t i = 0; i < input_size; ++i) {
+        uint8_t value = input[i];
+        if (stride && i >= stride) value = (uint8_t)(value - input[i - stride]);
+        ++frequencies[value];
+    }
+    uint64_t score = 0;
+    for (unsigned i = 0; i < 256; ++i) score += (uint64_t)frequencies[i] * frequencies[i];
+    return score;
+}
+
+static size_t choose_delta_stride(const uint8_t *input, size_t input_size) {
+    if (input_size < 32) return 0;
+    uint64_t best_score = byte_concentration(input, input_size, 0);
+    size_t best_stride = 0;
+    for (size_t stride = 1; stride <= 8 && stride < input_size; ++stride) {
+        uint64_t score = byte_concentration(input, input_size, stride);
+        if (score > best_score) {
+            best_score = score;
+            best_stride = stride;
+        }
+    }
+    return best_stride;
+}
+
+static void delta_transform(const uint8_t *input, uint8_t *output,
+                            size_t input_size, size_t stride) {
+    for (size_t i = 0; i < input_size; ++i)
+        output[i] = i < stride ? input[i] : (uint8_t)(input[i] - input[i - stride]);
+}
+
+static void inverse_delta(Buffer *output, size_t block_start, size_t stride) {
+    size_t block_size = output->size - block_start;
+    if (stride == 0 || stride > 8 || stride > block_size) fail("invalid delta stride");
+    for (size_t i = stride; i < block_size; ++i)
+        output->data[block_start + i] = (uint8_t)(output->data[block_start + i] +
+                                                  output->data[block_start + i - stride]);
+}
+
 static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy, int entropy) {
     Buffer output = {0};
     reserve(&output, HEADER_SIZE + input_size / 2 + 64);
@@ -573,7 +614,8 @@ static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy
 }
 
 static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
-                                      size_t lazy_limit, int entropy, int split_entropy) {
+                                      size_t lazy_limit, int entropy, int split_entropy,
+                                      int delta_stride) {
     Buffer output = {0};
     reserve(&output, HEADER_SIZE + input_size / 2 + 64);
     append_byte(&output, 'B'); append_byte(&output, 'I');
@@ -596,11 +638,32 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
         Buffer split = {0};
         if (split_entropy)
             split = split_huffman_encode(trial.data + HEADER_SIZE, payload_size, decoded_size);
+        Buffer transformed_split = {0};
+        size_t transformed_stride = 0;
+        if (delta_stride) {
+            transformed_stride = choose_delta_stride(input + pos, decoded_size);
+            if (transformed_stride) {
+                uint8_t *transformed = (uint8_t *)malloc(decoded_size);
+                if (!transformed) fail("out of memory");
+                delta_transform(input + pos, transformed, decoded_size, transformed_stride);
+                Buffer transformed_trial = compress_range(transformed, decoded_size, 0,
+                                                          decoded_size, lazy_limit);
+                transformed_split = split_huffman_encode(transformed_trial.data + HEADER_SIZE,
+                                                         transformed_trial.size - HEADER_SIZE,
+                                                         decoded_size);
+                free(transformed_trial.data);
+                free(transformed);
+            }
+        }
         uint8_t mode = 0;
         size_t stored_size = decoded_size;
         if (payload_size < stored_size) { mode = 4; stored_size = payload_size; }
         if (entropy && huffman.size < stored_size) { mode = 5; stored_size = huffman.size; }
         if (split_entropy && split.size < stored_size) { mode = 6; stored_size = split.size; }
+        if (transformed_stride && transformed_split.size + 1 < stored_size) {
+            mode = 7;
+            stored_size = transformed_split.size + 1;
+        }
         append_byte(&output, mode);
         append_u32le(&output, (uint32_t)decoded_size);
         append_u32le(&output, (uint32_t)stored_size);
@@ -610,10 +673,15 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
             append_bytes(&output, huffman.data, huffman.size);
         else if (mode == 6)
             append_bytes(&output, split.data, split.size);
+        else if (mode == 7) {
+            append_byte(&output, (uint8_t)transformed_stride);
+            append_bytes(&output, transformed_split.data, transformed_split.size);
+        }
         else
             append_bytes(&output, input + pos, decoded_size);
         free(huffman.data);
         free(split.data);
+        free(transformed_split.data);
         free(trial.data);
         pos += decoded_size;
     }
@@ -673,7 +741,7 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
         uint8_t mode = input[ip++];
         size_t block_decoded = read_u32le(input + ip); ip += 4;
         size_t block_stored = read_u32le(input + ip); ip += 4;
-        if ((mode > 2 && mode != 4 && mode != 5 && mode != 6) ||
+        if ((mode > 2 && mode != 4 && mode != 5 && mode != 6 && mode != 7) ||
             block_decoded == 0 || block_decoded > BLOCK_SIZE ||
             block_decoded > decoded_size - output.size || block_stored > input_size - ip)
             fail("invalid block");
@@ -696,9 +764,16 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
             Buffer token_stream = huffman_decode(input + ip, block_stored);
             decompress_payload(&output, token_stream.data, token_stream.size, block_decoded, match_base);
             free(token_stream.data);
-        } else {
+        } else if (mode == 6) {
             size_t match_base = output.size > WINDOW ? output.size - WINDOW : 0;
             split_huffman_decode(&output, input + ip, block_stored, block_decoded, match_base);
+        } else {
+            if (block_stored < 1) fail("truncated delta block");
+            size_t block_start = output.size;
+            size_t stride = input[ip];
+            split_huffman_decode(&output, input + ip + 1, block_stored - 1,
+                                 block_decoded, block_start);
+            inverse_delta(&output, block_start, stride);
         }
         ip += block_stored;
     }
@@ -730,7 +805,7 @@ static void write_file(const char *path, const Buffer *buffer) {
 
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|d INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|d INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -740,23 +815,26 @@ int main(int argc, char **argv) {
     int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0 ||
                   strcmp(argv[1], "clbh") == 0 || strcmp(argv[1], "clblink") == 0 ||
                   strcmp(argv[1], "clblinkh") == 0 || strcmp(argv[1], "clblinks") == 0 ||
-                  strcmp(argv[1], "clblinksg") == 0;
+                  strcmp(argv[1], "clblinksg") == 0 || strcmp(argv[1], "clblinksd") == 0;
     int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0 ||
                     strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0;
     is_linked = is_linked || strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksg") == 0;
+    is_linked = is_linked || strcmp(argv[1], "clblinksd") == 0;
     int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
                      strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 || is_linked;
     int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 ||
                      strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0 ||
                      strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
-                     strcmp(argv[1], "clblinksg") == 0;
+                     strcmp(argv[1], "clblinksg") == 0 || strcmp(argv[1], "clblinksd") == 0;
     int is_split_entropy = strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
                            strcmp(argv[1], "clblinksg") == 0;
+    is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksd") == 0;
     int is_gated_lazy = strcmp(argv[1], "clblinksg") == 0;
+    int is_delta_stride = strcmp(argv[1], "clblinksd") == 0;
     int is_decode = strcmp(argv[1], "d") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|d INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|d INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -767,7 +845,7 @@ int main(int argc, char **argv) {
     else if (is_linked)
         output = compress_linked_blocked(input.data, input.size,
                                          is_gated_lazy ? 32 : (is_lazy ? MAX_MATCH : 0),
-                                         is_entropy, is_split_entropy);
+                                         is_entropy, is_split_entropy, is_delta_stride);
     else if (is_blocked)
         output = compress_blocked(input.data, input.size, is_lazy, is_entropy);
     else

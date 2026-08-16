@@ -44,6 +44,7 @@ CODECS = [
     Codec("bite-link-split-greedy", str(ROOT / "bin/bite"), ("cblinks", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-lazy", str(ROOT / "bin/bite"), ("clblinks", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-gated", str(ROOT / "bin/bite"), ("clblinksg", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-link-split-delta", str(ROOT / "bin/bite"), ("clblinksd", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("gzip-1", "gzip", ("-1", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("gzip-9", "gzip", ("-9", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("zstd-1", "zstd", ("-q", "-1", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),
@@ -100,10 +101,16 @@ def is_external(codec_name: str) -> bool:
     return not codec_name.startswith("bite-")
 
 
+def compatible_platform(platform: str) -> str:
+    """Drop uname's mutable node name while retaining OS/kernel/build/architecture."""
+    parts = platform.split(" ", 2)
+    return f"{parts[0]} {parts[2]}" if len(parts) == 3 else platform
+
+
 def cache_fingerprint(platform: str, files: list[dict], tools: dict[str, str]) -> str:
     material = {
         "benchmark_schema": BENCHMARK_SCHEMA,
-        "platform": platform,
+        "platform": compatible_platform(platform),
         "files": files,
         "external_tools": {name: value for name, value in sorted(tools.items()) if is_external(name)},
     }
@@ -154,7 +161,8 @@ def main() -> None:
     if args.baseline_cache:
         cache_dir = args.baseline_cache.resolve()
         cached_metadata = json.loads((cache_dir / "metadata.json").read_text())
-        if cached_metadata.get("platform") != platform or cached_metadata.get("files") != file_metadata:
+        cached_platform = cached_metadata.get("platform_compat") or compatible_platform(cached_metadata.get("platform", ""))
+        if cached_platform != compatible_platform(platform) or cached_metadata.get("files") != file_metadata:
             raise SystemExit("baseline cache rejected: platform or corpus fingerprint changed")
         external_codecs = [c for c in CODECS if is_external(c.name) and c.name not in {s.name for s in selected}]
         current_external_tools = {c.name: version(c.executable) for c in external_codecs}
@@ -182,6 +190,7 @@ def main() -> None:
         "stage": args.stage,
         "repeats": args.repeats,
         "platform": platform,
+        "platform_compat": compatible_platform(platform),
         "git_head": git_head,
         "compiler": version("cc"),
         "bite_sha256": digest(bite_path).hex() if bite_path.exists() else None,
