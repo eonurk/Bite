@@ -69,6 +69,11 @@
   throughput fell 11.319%, decode throughput fell 4.535%, and encoder RSS rose
   19.940%. Mode 8 won 29 of 152 blocks, but one generated pseudo-text file
   contributed 83.6% of the 6,084-byte gain. The implementation was reverted.
+- `EXP-0012` persistent circular match chains with 64-bit absolute hash heads
+  was rejected. It produced byte-identical streams to the rebuilt-history
+  parent but reduced encode throughput 7.132%. The larger hot head table and
+  ring predecessor indirection outweighed saved history insertion. Generated
+  source improved 2.15%, but almost every large file slowed.
 
 ## Dataset-specific observations
 
@@ -127,6 +132,8 @@
    relative to v1 lazy, despite improving total heterogeneous-corpus size.
    `EXP-0005` linked mode recovers nearly all of this ratio, but its repeated
    history indexing is slower than both independent v2 and whole-file v1.
+   `EXP-0012` shows that straightforward persistence is also slower when it
+   doubles hash-head width and adds circular predecessor indirection.
 5. Huffman decoding now has an 8-bit prefix fast path, but table construction
    still adds overhead to streams that barely meet the 256-symbol gate. Binary,
    executable, image, and tiny-file category decode rates regress 1–5% while
@@ -257,7 +264,7 @@ Ranking after `EXP-0010` (first item completed by rejected `EXP-0011`):
 5. Adaptive Huffman lookup eligibility based on stream length and tree/code
    depth, avoiding table construction for low-benefit distributions.
 
-Current ranking after `EXP-0011`:
+Ranking after `EXP-0011` (first item completed by rejected `EXP-0012`):
 
 1. Persistent circular match chains across linked blocks, eliminating repeated
    history indexing without changing the retained token representation.
@@ -269,6 +276,19 @@ Current ranking after `EXP-0011`:
    tree-walk work.
 5. Distance recency or length/distance correlation modeling within the split
    token representation, with complete model costs counted.
+
+Current ranking after `EXP-0012`:
+
+1. Cheaper sampled transform prefiltering to avoid eight full-block histogram
+   passes and unprofitable transformed parses.
+2. Cost-aware lazy gating using token/entropy estimates instead of a fixed
+   match-length threshold.
+3. Adaptive Huffman lookup eligibility based on stream length and estimated
+   tree-walk work.
+4. Distance recency or length/distance correlation modeling within the split
+   token representation, with complete model costs counted.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, but
+   only after profiling confirms the wider head table caused `EXP-0012`.
 
 ## Interactions between components
 
@@ -334,6 +354,11 @@ Current ranking after `EXP-0011`:
   four extra literal trees for every block costs 11.319% encode throughput even
   though the new representation wins only 29 of 152 blocks. Its decode cost is
   paid only on selected blocks, yet eight streams still reduce decode 4.535%.
+- Rebuilt and persistent match chains can produce exactly the same token stream,
+  so their speed difference is purely implementation architecture. In
+  `EXP-0012`, avoiding repeated insertion was insufficient to pay for 64-bit
+  heads and circular predecessor lookup; compact state is a prerequisite for
+  reconsidering persistence.
 
 ## Known benchmark artifacts
 
@@ -349,6 +374,9 @@ Current ranking after `EXP-0011`:
   encoder was 18.8% faster. Five repeats instead measured an 11.3% slowdown,
   reinforcing that one-repeat screens decide whether to validate size/correctness
   signals, not whether to credit modest timing changes.
+- `EXP-0012` parent and candidate compressed streams were byte-identical, yet
+  their measured decode rates differed -2.772% over five repeats. This directly
+  bounds such process-level decode deltas as noise, not decoder effects.
 - Per-file medians are summed, so aggregate time weights startup once per file.
   A later in-process/library benchmark is needed before making startup or
   steady-state speed claims.
