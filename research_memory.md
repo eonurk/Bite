@@ -96,6 +96,12 @@
   position. Three-repeat encoder RSS falls 11.931% on dev and 10.253% on public
   research. Encode changes -0.091%/+0.297%, both noise; size, decode format, and
   binary behavior are unchanged.
+- `EXP-0023` retains speed-frontier mode `clblinksopt2dfs`. It builds one
+  immutable predecessor-chain/longest-match index per block and reuses it across
+  all three optimized parses. Streams are byte-identical to EXP-0022 on all 43
+  observed files. Three-repeat encode throughput improves 15.709% on dev and
+  25.347% on public research, for RSS changes of +0.746% and +3.777%. Size,
+  format, and decode behavior are exact controls.
 - Routine candidate evaluation now preserves the original frozen dev corpus and
   adds a separately addressable 13,787,888-byte public research suite: 13
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
@@ -527,6 +533,19 @@ Ranking after `EXP-0022`:
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
+Ranking after `EXP-0023`:
+
+1. Block-level entropy-model selection that reuses parsed streams and exact
+   costs every representation, looking for ratio gains beyond parsing alone.
+2. Test a principled convergence/stopping signal before any further parse; do
+   not perform an iteration-count or chain-depth sweep.
+3. Explore joint length/distance classes only if they reuse the shared match
+   index rather than adding another representation pass.
+4. Share or stream split-field demultiplexing and Huffman statistics between
+   parse/model stages; match search is no longer duplicated in the shared mode.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -620,6 +639,11 @@ Ranking after `EXP-0022`:
   identical streams, but encode time is unchanged. The per-position offset
   table caused memory overhead; repeated full candidate comparisons and three
   independently built match structures dominate runtime.
+- `EXP-0023` confirms that match structure is invariant across entropy-model
+  iterations. Sharing it recovers 16–25% throughput with identical streams,
+  while small RSS increases show that retaining one block index is cheap. The
+  remaining maximum-mode cost is DP/model/Huffman work and costed candidate
+  comparison, not rebuilding ordinary longest matches.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -668,6 +692,9 @@ Ranking after `EXP-0022`:
   moved in the opposite direction and public validation was -0.5%. A three-
   repeat in-process control measured only -0.377% (280.09 versus 281.15 MB/s),
   so the process result is rejected as startup/scheduling noise.
+- EXP-0023 public process validation reports decode -4.35% even though every
+  compressed byte is identical to its parent. It is necessarily measurement
+  noise and is not part of the decision.
 - Per-file medians are summed, so aggregate time weights startup once per file.
   A later in-process/library benchmark is needed before making startup or
   steady-state speed claims.
@@ -690,6 +717,8 @@ Ranking after `EXP-0022`:
 - EXP-0022's additional control mode makes the measured binary 92,456 bytes,
   only 32 bytes larger than EXP-0021. Its meaningful improvement is transient
   encoder memory, not code size.
+- EXP-0023 makes the measured binary 92,552 bytes (+96, +0.104%). The speed
+  gain comes from shared runtime state rather than code-size expansion.
 - The new in-process baseline exposes the prefix lookup's steady-state effect:
   versus `dslow`, decode is 47.7% faster on dev (277.29 vs 187.73 MB/s) and
   68.3% faster on public research (196.73 vs 116.86 MB/s). The earlier process
@@ -753,7 +782,8 @@ Ranking after `EXP-0022`:
   broadly useful; the open problem is retaining it without exhaustive extra
   search and storage.
 - EXP-0022 resolves the storage half of that problem without changing output;
-  sharing the invariant match structure across model iterations remains open.
+  EXP-0023 then shares the invariant match structure across model iterations,
+  recovering broad speed. Costed candidate comparison itself remains open.
 - Literal context may still be useful only if its coding tables are shared or
   much cheaper than four independent serialized Huffman trees; do not retry the
   rejected top-two-bit split without a mechanism that addresses table/compute
@@ -791,3 +821,6 @@ internal endpoint rather than an external Pareto point.
 EXP-0022 preserves EXP-0021's size and effective speed while reducing encoder
 RSS from 7,553,024 to 6,651,904 bytes on dev. It supersedes EXP-0021 on Bite's
 internal size/speed/memory frontier, but remains externally dominated by xz-6.
+EXP-0023 preserves the same 2,270,290-byte output while raising dev encode
+throughput from 1.36 to 1.58 MB/s at nearly equal RSS. It supersedes EXP-0022
+on Bite's internal size/speed frontier, but xz-6 remains smaller and faster.
