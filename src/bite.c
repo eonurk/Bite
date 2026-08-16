@@ -916,6 +916,22 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
             parsed_split = split_huffman_encode(parsed_trial.data + HEADER_SIZE,
                                                 parsed_trial.size - HEADER_SIZE,
                                                 decoded_size);
+            if (entropy_parse > 1) {
+                Buffer iterated_trial = compress_entropy_parsed_range(
+                    input + history_start, history_size + decoded_size, history_size,
+                    decoded_size, parsed_trial.data + HEADER_SIZE,
+                    parsed_trial.size - HEADER_SIZE);
+                Buffer iterated_split = split_huffman_encode(
+                    iterated_trial.data + HEADER_SIZE,
+                    iterated_trial.size - HEADER_SIZE, decoded_size);
+                if (iterated_split.size < parsed_split.size) {
+                    free(parsed_split.data);
+                    parsed_split = iterated_split;
+                } else {
+                    free(iterated_split.data);
+                }
+                free(iterated_trial.data);
+            }
             free(parsed_trial.data);
         }
         Buffer transformed_split = {0};
@@ -1097,7 +1113,7 @@ static void write_file(const char *path, const Buffer *buffer) {
 #ifndef BITE_NO_MAIN
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -1108,7 +1124,8 @@ int main(int argc, char **argv) {
                   strcmp(argv[1], "clbh") == 0 || strcmp(argv[1], "clblink") == 0 ||
                   strcmp(argv[1], "clblinkh") == 0 || strcmp(argv[1], "clblinks") == 0 ||
                   strcmp(argv[1], "clblinksg") == 0 || strcmp(argv[1], "clblinksd") == 0 ||
-                  strcmp(argv[1], "clblinksdf") == 0 || strcmp(argv[1], "clblinksopt") == 0;
+                  strcmp(argv[1], "clblinksdf") == 0 || strcmp(argv[1], "clblinksopt") == 0 ||
+                  strcmp(argv[1], "clblinksopt2") == 0;
     int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0 ||
                     strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0;
     is_linked = is_linked || strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0;
@@ -1116,29 +1133,35 @@ int main(int argc, char **argv) {
     is_linked = is_linked || strcmp(argv[1], "clblinksd") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksdf") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksopt") == 0;
+    is_linked = is_linked || strcmp(argv[1], "clblinksopt2") == 0;
     int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
                      strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 || is_linked;
     int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 ||
                      strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0 ||
                      strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
                      strcmp(argv[1], "clblinksg") == 0 || strcmp(argv[1], "clblinksd") == 0 ||
-                     strcmp(argv[1], "clblinksdf") == 0 || strcmp(argv[1], "clblinksopt") == 0;
+                     strcmp(argv[1], "clblinksdf") == 0 || strcmp(argv[1], "clblinksopt") == 0 ||
+                     strcmp(argv[1], "clblinksopt2") == 0;
     int is_split_entropy = strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
                            strcmp(argv[1], "clblinksg") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksd") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksdf") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt") == 0;
+    is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2") == 0;
     int is_gated_lazy = strcmp(argv[1], "clblinksg") == 0;
     int is_delta_stride = strcmp(argv[1], "clblinksd") == 0 ||
                           strcmp(argv[1], "clblinksdf") == 0 ||
-                          strcmp(argv[1], "clblinksopt") == 0;
+                          strcmp(argv[1], "clblinksopt") == 0 ||
+                          strcmp(argv[1], "clblinksopt2") == 0;
     int is_sampled_delta = strcmp(argv[1], "clblinksdf") == 0 ||
-                           strcmp(argv[1], "clblinksopt") == 0;
-    int is_entropy_parse = strcmp(argv[1], "clblinksopt") == 0;
+                           strcmp(argv[1], "clblinksopt") == 0 ||
+                           strcmp(argv[1], "clblinksopt2") == 0;
+    int is_entropy_parse = strcmp(argv[1], "clblinksopt") == 0 ? 1 :
+                           (strcmp(argv[1], "clblinksopt2") == 0 ? 2 : 0);
     int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dwork") == 0 ||
                     strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }

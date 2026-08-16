@@ -51,6 +51,8 @@ Mode `clblinksdf` uses the same representation with a start/middle/end sample
 and conservative concentration gate to avoid low-confidence transformed parses.
 Mode `clblinksopt` exact-selects a second mode-6 token stream from a bounded
 dynamic parser using the parent block's split-Huffman field costs.
+Mode `clblinksopt2` repeats cost estimation and parsing once, exact-selecting
+the second optimized stream against the first.
 Decoder `dwork` builds the 8-bit Huffman lookup only when estimated tree-edge
 work exceeds one residual edge per symbol plus worst-case table construction.
 
