@@ -43,6 +43,10 @@
   point: 3,615,800 bytes (3.220 bits/byte), 21.71 MB/s encode, 54.27 MB/s decode,
   and 6.36 MB encoder RSS. Five exact-counted order-0 alphabets reduce linked
   joint-Huffman size 7.773% with no per-file size regression.
+- `EXP-0008` gated lazy mode `clblinksg` is retained beside full max lazy. It
+  limits lookahead to current matches under 32 bytes, gaining 8.188% validated
+  encode throughput for 0.087% aggregate size growth and 2.344% lower encoder
+  RSS. It is a neighboring internal Pareto point, not the new default.
 
 ## What consistently fails
 
@@ -88,6 +92,8 @@
    bytes regardless of distance/length. It cannot trade a literal or short
    match for a materially better next match. Bounded single-hash chains also
    limit match choice.
+   `EXP-0008` shows a fixed length gate recovers some search cost, but its
+   dataset interaction is sharp and a better cost-aware gate remains open.
 3. V1 stores a four-byte predecessor per input byte and has a 2 GiB limit. V2
    bounds match-state allocation to 64 KiB and cuts measured encoder RSS by
    44.8%, but file I/O and final output are still whole-file buffers rather than
@@ -185,7 +191,7 @@ Ranking after `EXP-0006` (first item completed by `EXP-0007`):
 5. Persistent circular match chains across blocks to avoid linked-history
    re-indexing while preserving bounded memory.
 
-Current ranking after `EXP-0007`:
+Ranking after `EXP-0007` (first item completed by `EXP-0008`):
 
 1. Gated lazy parsing to avoid next-match searches when the current match is
    already long or local match density is low.
@@ -195,6 +201,15 @@ Current ranking after `EXP-0007`:
 4. Context-split literal models (for example previous-byte classes) within the
    literal stream, with exact table-cost selection.
 5. Persistent circular match chains across linked blocks.
+
+Current ranking after `EXP-0008`:
+
+1. Reversible stride/byte-plane transforms for scientific and raw image blocks.
+2. Faster canonical/table Huffman decoding for multi-stream mode 6.
+3. Context-split literal models within the isolated literal stream.
+4. Persistent circular match chains across linked blocks.
+5. Cost-aware lazy gating using estimated token/entropy cost rather than a fixed
+   match-length threshold.
 
 ## Interactions between components
 
@@ -242,6 +257,11 @@ Current ranking after `EXP-0007`:
 - Scientific data is notable: split entropy makes an LZ-derived representation
   24,625 bytes smaller than raw framing even though plain and joint-Huffman LZ
   previously selected raw. Token fields exposed structure hidden when mixed.
+- Gating lazy lookahead at 32 bytes is a useful but dataset-sensitive policy.
+  It makes generated source 9.318% larger while making generated text 12.066%
+  smaller; Canterbury grows only 0.074%, and other categories are size-neutral.
+  Encode throughput improves broadly, including Canterbury 10.571%, JSON
+  11.645%, source 20.444%, text 37.137%, and XML 8.960%.
 
 ## Known benchmark artifacts
 
@@ -250,6 +270,9 @@ Current ranking after `EXP-0007`:
 - A five-repeat Bite rerun reproduced compressed size and peak RSS exactly.
   Encode throughput changed -0.20%; decode throughput changed +2.01%. Treat
   timing deltas below 3% as noise unless additional repetitions confirm them.
+- `EXP-0008` decode timing changed from -0.393% in the screen to +8.600% in
+  validation even though the decoder was unchanged and stream size barely
+  moved. Do not credit this decode result without an in-process benchmark.
 - Per-file medians are summed, so aggregate time weights startup once per file.
   A later in-process/library benchmark is needed before making startup or
   steady-state speed claims.
@@ -274,8 +297,8 @@ Current ranking after `EXP-0007`:
 
 - Byte-plane structure explains the unusually large xz advantage on generated
   floating-point and RGB data.
-- Gating lazy lookahead to shorter current matches may retain most of its size
-  gain while recovering enough encoder speed to approach a useful frontier.
+- A cost-aware lazy gate may avoid the generated-source ratio regression of the
+  fixed 32-byte policy while retaining its broad encode-speed gain.
 - Context-dependent literal alphabets may further improve structured text now
   that literals are isolated from control and match fields.
 
