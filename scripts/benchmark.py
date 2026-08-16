@@ -31,6 +31,8 @@ class Codec:
 CODECS = [
     Codec("bite-greedy", str(ROOT / "bin/bite"), ("c", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-lazy", str(ROOT / "bin/bite"), ("cl", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-block-greedy", str(ROOT / "bin/bite"), ("cb", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-block-lazy", str(ROOT / "bin/bite"), ("clb", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("gzip-1", "gzip", ("-1", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("gzip-9", "gzip", ("-9", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("zstd-1", "zstd", ("-q", "-1", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),

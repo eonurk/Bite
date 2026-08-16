@@ -23,3 +23,8 @@ Compressed format v1 starts with a 16-byte header, followed by groups of up to
 eight tokens. A control bit of zero denotes one literal byte. A one denotes a
 three-byte match `(offset-1:uint16le, length-4:uint8)`.
 
+Format v2 uses independent 64 KiB blocks after the same 16-byte file header.
+Each block has a nine-byte `(mode, decoded_size, stored_size)` header and is
+stored as either raw bytes or a v1 token payload, whichever is strictly smaller.
+Modes `cb` and `clb` select blocked greedy and blocked lazy compression;
+decompression detects the stream version automatically.

@@ -11,6 +11,8 @@
 #define MAX_MATCH 259u
 #define MAX_CHAIN 64u
 #define HEADER_SIZE 16u
+#define BLOCK_SIZE 65536u
+#define BLOCK_HEADER_SIZE 9u
 
 typedef struct {
     uint8_t *data;
@@ -48,6 +50,17 @@ static void append_byte(Buffer *buffer, uint8_t byte) {
     buffer->data[buffer->size++] = byte;
 }
 
+static void append_bytes(Buffer *buffer, const uint8_t *data, size_t size) {
+    reserve(buffer, size);
+    if (size) memcpy(buffer->data + buffer->size, data, size);
+    buffer->size += size;
+}
+
+static void append_u32le(Buffer *buffer, uint32_t value) {
+    reserve(buffer, 4);
+    for (unsigned i = 0; i < 4; ++i) buffer->data[buffer->size++] = (uint8_t)(value >> (8u * i));
+}
+
 static void append_u64le(Buffer *buffer, uint64_t value) {
     reserve(buffer, 8);
     for (unsigned i = 0; i < 8; ++i) buffer->data[buffer->size++] = (uint8_t)(value >> (8u * i));
@@ -56,6 +69,12 @@ static void append_u64le(Buffer *buffer, uint64_t value) {
 static uint64_t read_u64le(const uint8_t *p) {
     uint64_t value = 0;
     for (unsigned i = 0; i < 8; ++i) value |= (uint64_t)p[i] << (8u * i);
+    return value;
+}
+
+static uint32_t read_u32le(const uint8_t *p) {
+    uint32_t value = 0;
+    for (unsigned i = 0; i < 4; ++i) value |= (uint32_t)p[i] << (8u * i);
     return value;
 }
 
@@ -159,36 +178,96 @@ static Buffer compress_buffer(const uint8_t *input, size_t input_size, int lazy)
     return output;
 }
 
-static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
-    if (input_size < HEADER_SIZE || memcmp(input, "BITE", 4) != 0 || input[4] != 1)
-        fail("invalid or unsupported stream");
-    uint64_t decoded_u64 = read_u64le(input + 8);
-    if (decoded_u64 > SIZE_MAX) fail("decoded size unsupported");
-    size_t decoded_size = (size_t)decoded_u64;
+static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy) {
     Buffer output = {0};
-    reserve(&output, decoded_size ? decoded_size : 1);
-    size_t ip = HEADER_SIZE;
-    while (output.size < decoded_size) {
+    reserve(&output, HEADER_SIZE + input_size / 2 + 64);
+    append_byte(&output, 'B'); append_byte(&output, 'I');
+    append_byte(&output, 'T'); append_byte(&output, 'E');
+    append_byte(&output, 2); append_byte(&output, 0);
+    append_byte(&output, 0); append_byte(&output, 0);
+    append_u64le(&output, (uint64_t)input_size);
+
+    size_t pos = 0;
+    while (pos < input_size) {
+        size_t decoded_size = input_size - pos;
+        if (decoded_size > BLOCK_SIZE) decoded_size = BLOCK_SIZE;
+        Buffer trial = compress_buffer(input + pos, decoded_size, lazy);
+        size_t payload_size = trial.size - HEADER_SIZE;
+        int use_lz = payload_size < decoded_size;
+        append_byte(&output, (uint8_t)use_lz);
+        append_u32le(&output, (uint32_t)decoded_size);
+        append_u32le(&output, (uint32_t)(use_lz ? payload_size : decoded_size));
+        if (use_lz)
+            append_bytes(&output, trial.data + HEADER_SIZE, payload_size);
+        else
+            append_bytes(&output, input + pos, decoded_size);
+        free(trial.data);
+        pos += decoded_size;
+    }
+    return output;
+}
+
+static void decompress_payload(Buffer *output, const uint8_t *input,
+                               size_t input_size, size_t decoded_size) {
+    if (decoded_size > SIZE_MAX - output->size) fail("decoded size overflow");
+    size_t block_start = output->size;
+    size_t target_size = block_start + decoded_size;
+    size_t ip = 0;
+    while (output->size < target_size) {
         if (ip >= input_size) fail("truncated control byte");
         uint8_t control = input[ip++];
-        for (unsigned bit = 0; bit < 8 && output.size < decoded_size; ++bit) {
+        for (unsigned bit = 0; bit < 8 && output->size < target_size; ++bit) {
             if ((control & (1u << bit)) == 0) {
                 if (ip >= input_size) fail("truncated literal");
-                append_byte(&output, input[ip++]);
+                append_byte(output, input[ip++]);
             } else {
                 if (input_size - ip < 3) fail("truncated match");
                 size_t offset = (size_t)input[ip] | ((size_t)input[ip + 1] << 8);
                 offset += 1;
                 size_t length = (size_t)input[ip + 2] + MIN_MATCH;
                 ip += 3;
-                if (offset > output.size || length > decoded_size - output.size) fail("invalid match");
-                reserve(&output, length);
+                if (offset > output->size - block_start || length > target_size - output->size)
+                    fail("invalid match");
+                reserve(output, length);
                 for (size_t i = 0; i < length; ++i) {
-                    output.data[output.size] = output.data[output.size - offset];
-                    ++output.size;
+                    output->data[output->size] = output->data[output->size - offset];
+                    ++output->size;
                 }
             }
         }
+    }
+    if (ip != input_size) fail("trailing compressed data");
+}
+
+static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
+    if (input_size < HEADER_SIZE || memcmp(input, "BITE", 4) != 0 || (input[4] != 1 && input[4] != 2))
+        fail("invalid or unsupported stream");
+    uint64_t decoded_u64 = read_u64le(input + 8);
+    if (decoded_u64 > SIZE_MAX) fail("decoded size unsupported");
+    size_t decoded_size = (size_t)decoded_u64;
+    Buffer output = {0};
+    reserve(&output, decoded_size ? decoded_size : 1);
+    if (input[4] == 1) {
+        decompress_payload(&output, input + HEADER_SIZE, input_size - HEADER_SIZE, decoded_size);
+        return output;
+    }
+
+    size_t ip = HEADER_SIZE;
+    while (output.size < decoded_size) {
+        if (input_size - ip < BLOCK_HEADER_SIZE) fail("truncated block header");
+        uint8_t mode = input[ip++];
+        size_t block_decoded = read_u32le(input + ip); ip += 4;
+        size_t block_stored = read_u32le(input + ip); ip += 4;
+        if (mode > 1 || block_decoded == 0 || block_decoded > BLOCK_SIZE ||
+            block_decoded > decoded_size - output.size || block_stored > input_size - ip)
+            fail("invalid block");
+        if (mode == 0) {
+            if (block_stored != block_decoded) fail("invalid raw block");
+            append_bytes(&output, input + ip, block_stored);
+        } else {
+            decompress_payload(&output, input + ip, block_stored, block_decoded);
+        }
+        ip += block_stored;
     }
     if (ip != input_size) fail("trailing compressed data");
     return output;
@@ -217,17 +296,28 @@ static void write_file(const char *path, const Buffer *buffer) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4 || (strcmp(argv[1], "c") != 0 && strcmp(argv[1], "cl") != 0 && strcmp(argv[1], "d") != 0)) {
-        fprintf(stderr, "usage: bite c|cl|d INPUT OUTPUT\n");
-        fprintf(stderr, "  c: greedy compression; cl: lazy compression; d: decompression\n");
+    if (argc != 4) {
+        fprintf(stderr, "usage: bite c|cl|cb|clb|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c/cl: v1 greedy/lazy; cb/clb: v2 blocked greedy/lazy; d: decompress\n");
+        return 2;
+    }
+    int is_greedy = strcmp(argv[1], "c") == 0 || strcmp(argv[1], "cb") == 0;
+    int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0;
+    int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0;
+    int is_decode = strcmp(argv[1], "d") == 0;
+    if (!is_greedy && !is_lazy && !is_decode) {
+        fprintf(stderr, "usage: bite c|cl|cb|clb|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c/cl: v1 greedy/lazy; cb/clb: v2 blocked greedy/lazy; d: decompress\n");
         return 2;
     }
     Buffer input = read_file(argv[2]);
     Buffer output;
-    if (strcmp(argv[1], "d") == 0)
+    if (is_decode)
         output = decompress_buffer(input.data, input.size);
+    else if (is_blocked)
+        output = compress_blocked(input.data, input.size, is_lazy);
     else
-        output = compress_buffer(input.data, input.size, strcmp(argv[1], "cl") == 0);
+        output = compress_buffer(input.data, input.size, is_lazy);
     write_file(argv[3], &output);
     free(output.data);
     free(input.data);
