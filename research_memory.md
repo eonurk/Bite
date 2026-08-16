@@ -156,6 +156,12 @@
   against only 59.1 ms aggregate. Public research encode throughput regressed
   0.578%. This gate skips work mainly on synthetic/raw-selected blocks rather
   than reducing the parser's broad compressible-data cost.
+- `EXP-0024` joint-Huffman selection over all three optimized parses was
+  rejected after winning zero blocks. Candidate streams were byte-identical to
+  EXP-0023 across all 43 observed files; split field coding remained smaller in
+  every optimized case. Three extra Huffman encodes changed one-repeat encode
+  throughput -1.776% on dev and -1.688% on public research. Parent mode 5
+  already captures blocks where the original parse benefits from joint coding.
 
 ## Dataset-specific observations
 
@@ -546,6 +552,19 @@ Ranking after `EXP-0023`:
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
+Ranking after `EXP-0024`:
+
+1. Test a principled convergence/stopping signal before any further parse; do
+   not perform an iteration-count or chain-depth sweep.
+2. Explore joint length/distance classes only if they reuse the shared match
+   index rather than adding another representation pass.
+3. Share or stream split-field demultiplexing and Huffman statistics between
+   parse/model stages.
+4. Explore a genuinely different block model, such as conditional distance
+   classes; do not retry joint token Huffman on optimized parses.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -644,6 +663,11 @@ Ranking after `EXP-0023`:
   while small RSS increases show that retaining one block index is cheap. The
   remaining maximum-mode cost is DP/model/Huffman work and costed candidate
   comparison, not rebuilding ordinary longest matches.
+- `EXP-0024` shows field separation and optimized parsing reinforce each other:
+  joint Huffman wins no optimized block on either corpus even though the parent
+  still exact-selects joint mode 5 where useful. Generating alternative entropy
+  models without a structural reason repeats the zero-win compute pattern from
+  EXP-0015.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -788,6 +812,9 @@ Ranking after `EXP-0023`:
   much cheaper than four independent serialized Huffman trees; do not retry the
   rejected top-two-bit split without a mechanism that addresses table/compute
   cost and the pseudo-text concentration.
+- Joint Huffman over optimized token payloads is closed by EXP-0024: it wins no
+  observed block. Future block models must exploit a dependency that the five
+  split order-0 streams miss, rather than recombining those fields.
 - Huffman lookup should be enabled by estimated decoded bit work, not decoded
   symbol count alone. `EXP-0017` resolves the earlier ambiguity with repeated
   startup-free evidence and retains the work gate as optional `dwork`.
