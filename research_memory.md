@@ -175,6 +175,12 @@
   block, while the extra conditional model/DP cut encode throughput 42.529%
   and 37.026%. A real local dependency is not enough when it fails the broad
   validation gate.
+- `EXP-0027` sharing split-Huffman code costs with the following parser stage
+  was rejected for lack of practical effect. It removes three token demuxes and
+  twelve redundant tree builds while preserving every compressed byte across
+  all 42 dev+research files, but one-repeat encode gains were only 0.789% dev
+  and 1.184% research. Both are below the 3% validation threshold, so the extra
+  interface and mode were reverted without a longer timing run.
 
 ## Dataset-specific observations
 
@@ -609,6 +615,19 @@ Ranking after `EXP-0026`:
 5. Reconsider conditional distance coding only with a representation that
    avoids extra Huffman trees and first demonstrates broad validation signal.
 
+Ranking after `EXP-0027`:
+
+1. Reduce repeated costed-candidate comparisons with reusable per-block cost
+   summaries; require byte-identical choices before timing validation.
+2. Revisit literal context only with shared/cheap tables that directly address
+   EXP-0011's serialization and pseudo-text concentration failures.
+3. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+4. Profile DP arithmetic and allocation hot spots before attempting another
+   identical-output maximum-mode acceleration.
+5. Reconsider conditional distance coding only with a representation that
+   avoids extra Huffman trees and first demonstrates broad validation signal.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -722,6 +741,11 @@ Ranking after `EXP-0026`:
   it cannot recover the 37–43% encoder cost, and 32 of those wins occur in only
   three dev files. Representation/model passes need a broad structural signal
   before being added to the maximum mode.
+- `EXP-0027` isolates Huffman-stat recovery from match and DP work. Sharing the
+  exact code lengths eliminates three complete field demultiplexes and twelve
+  tree reconstructions, yet end-to-end encode improves only about 1% on both
+  suites. The remaining maximum-mode time is therefore dominated by the three
+  DPs and final costed candidate comparisons, not entropy-stat reconstruction.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -873,9 +897,9 @@ Ranking after `EXP-0026`:
 - Exact first-parse fixed-point stopping is closed by EXP-0025 as a practical
   speed mechanism: it is correct but produces sub-noise gains on both suites.
 - Repeated split-field demultiplexing, frequency collection, and Huffman tree
-  construction remain unshared across three model/parse stages. EXP-0023 moved
-  match finding out of that loop, so identical-output sharing here is the next
-  direct test of maximum-mode compute rather than another corpus-sensitive gate.
+  construction were tested directly in EXP-0027. Sharing them preserves every
+  output byte but gains only 0.8-1.2%, closing this as a meaningful standalone
+  speed mechanism. The costed DP/candidate comparison remains the larger target.
 - Huffman lookup should be enabled by estimated decoded bit work, not decoded
   symbol count alone. `EXP-0017` resolves the earlier ambiguity with repeated
   startup-free evidence and retains the work gate as optional `dwork`.

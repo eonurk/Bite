@@ -1,0 +1,3 @@
+codec,aggregate_files,excluded_files,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,peak_memory_encode,peak_memory_decode,binary_size,correct
+bite-link-split-optimal-distances-shared,26,0,8982882,2270290,2.021881173547643,3.95671125715217,5.696310500963591,0.14720321306958795,1.5769649492387134,61.02368156701503,6651904,3080192,92840,True
+bite-link-split-optimal-stats-shared,26,0,8982882,2270290,2.021881173547643,3.95671125715217,5.6517103352816775,0.14679212495684624,1.589409482634481,61.19457704315389,6602752,3080192,92840,True
