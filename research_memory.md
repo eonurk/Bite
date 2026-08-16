@@ -47,6 +47,11 @@
   limits lookahead to current matches under 32 bytes, gaining 8.188% validated
   encode throughput for 0.087% aggregate size growth and 2.344% lower encoder
   RSS. It is a neighboring internal Pareto point, not the new default.
+- `EXP-0009` adaptive delta-stride mode `clblinksd` is retained provisionally.
+  It totals 2,357,354 bytes (2.099 bits/byte), 18.78 MB/s encode, 58.21 MB/s
+  decode, and 5.44 MB encoder RSS. On the frozen development corpus it creates
+  a size/encode frontier point between xz-6 and xz-1, but broader raw/scientific
+  evidence is required because the largest gain is a synthetic RGB gradient.
 
 ## What consistently fails
 
@@ -70,6 +75,10 @@
 - In v2, all 2,504,057 bytes from random, scientific, and RGB categories select
   raw blocks. They shrink by about 11% relative to v1, leaving only file and
   block framing overhead rather than token-control expansion.
+- Delta-stride mode changes only generated fixtures: RGB -99.655%, scientific
+  -10.593%, and three small stride-pattern files -31% to -74%. No Canterbury
+  file changes. Selected transformed blocks use stride 1 (3 blocks), stride 3
+  (18), or stride 8 (13), matching the mechanism's intended structures.
 - Generated pseudo-executable data is 4.340 bits/byte in Bite versus 4.003 in
   LZ4, 1.966 in zstd-3, and 0.392 in xz-6. A 64 KiB window and fixed match
   representation miss strong long/structured repetition.
@@ -113,6 +122,10 @@
 7. Split entropy serializes and decodes five trees per selected block. It costs
    19.257% encode and 7.651% decode throughput versus joint linked Huffman; the
    bit-at-a-time tree walker magnifies this overhead.
+8. The delta prefilter scans up to eight transformed histograms and sometimes
+   runs an extra parse. Encode throughput falls 20.374% even on the aggregate;
+   mode selection protects size but not compute. Its apparent external frontier
+   point is not yet robust beyond generated raw/scientific fixtures.
 
 ## Promising unexplored directions
 
@@ -202,7 +215,7 @@ Ranking after `EXP-0007` (first item completed by `EXP-0008`):
    literal stream, with exact table-cost selection.
 5. Persistent circular match chains across linked blocks.
 
-Current ranking after `EXP-0008`:
+Ranking after `EXP-0008` (first item completed by `EXP-0009`):
 
 1. Reversible stride/byte-plane transforms for scientific and raw image blocks.
 2. Faster canonical/table Huffman decoding for multi-stream mode 6.
@@ -210,6 +223,15 @@ Current ranking after `EXP-0008`:
 4. Persistent circular match chains across linked blocks.
 5. Cost-aware lazy gating using estimated token/entropy cost rather than a fixed
    match-length threshold.
+
+Current ranking after `EXP-0009`:
+
+1. Faster canonical/table Huffman decoding for multi-stream modes 6 and 7.
+2. Context-split literal models within the isolated literal stream.
+3. Persistent circular match chains across linked blocks.
+4. Cheaper transform prefiltering that estimates stride benefit from a sample
+   rather than eight full-block histogram passes.
+5. Cost-aware lazy gating.
 
 ## Interactions between components
 
@@ -262,6 +284,10 @@ Current ranking after `EXP-0008`:
   smaller; Canterbury grows only 0.074%, and other categories are size-neutral.
   Encode throughput improves broadly, including Canterbury 10.571%, JSON
   11.645%, source 20.444%, text 37.137%, and XML 8.960%.
+- Delta-stride and split entropy interact extremely strongly on low-order raw
+  structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
+  readings fall by 82,151 bytes. Exact selection prevents all size regressions,
+  but the mechanism does not help the public Canterbury corpus.
 
 ## Known benchmark artifacts
 
@@ -287,6 +313,13 @@ Current ranking after `EXP-0008`:
   the `EXP-0006` cycle despite no results-cleaning command. They were restored
   byte-for-byte from Git before documentation; all result directories were then
   audited for the required metadata, per-file, and summary files.
+- Cache compatibility originally included `uname`'s mutable hostname. A transient
+  hostname change correctly stopped `EXP-0009`, but the corpus/kernel/tools were
+  identical. Fingerprinting now ignores node name while retaining OS, kernel
+  build, architecture, corpus hashes, and external tool versions.
+- The generated RGB gradient is a known favorable artifact for fixed-stride
+  transforms. Do not present the `EXP-0009` development frontier as a general
+  compressor result until public raw/scientific or held-out evidence confirms it.
 - The generated corpus is deterministic and its manifest is hashed. Canterbury
   is pinned to archive SHA-256
   `f140e8a5b73d3f53198555a63bfb827889394a42f20825df33c810c3d5e3f8fb`.
@@ -295,8 +328,9 @@ Current ranking after `EXP-0008`:
 
 ## Open hypotheses
 
-- Byte-plane structure explains the unusually large xz advantage on generated
-  floating-point and RGB data.
+- Fixed-stride delta structure explains much of the previous xz advantage on
+  generated floating-point and RGB data; generalization beyond these fixtures
+  remains open.
 - A cost-aware lazy gate may avoid the generated-source ratio regression of the
   fixed 32-byte policy while retaining its broad encode-speed gain.
 - Context-dependent literal alphabets may further improve structured text now
