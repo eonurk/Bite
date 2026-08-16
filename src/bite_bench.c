@@ -34,6 +34,7 @@ static Buffer benchmark_compress(const char *mode, const Buffer *input) {
 
 static Buffer benchmark_decompress(const char *mode, const Buffer *input) {
     if (strcmp(mode, "d") == 0) return decompress_buffer(input->data, input->size, 1);
+    if (strcmp(mode, "dwork") == 0) return decompress_buffer(input->data, input->size, 2);
     if (strcmp(mode, "dslow") == 0) return decompress_buffer(input->data, input->size, 0);
     fail("unsupported in-process decompression mode");
     return (Buffer){0};
@@ -82,7 +83,7 @@ int main(int argc, char **argv) {
             free(decoded.data);
             free(encoded.data);
         }
-        printf("%s\t%zu\t%zu\t%.9f\t%.9f\t1\n", argv[argument], input.size,
+        printf("%s\t%zu\t%zu\t%.12f\t%.12f\t1\n", argv[argument], input.size,
                compressed_size, median(encode_times, repeats),
                median(decode_times, repeats));
         free(input.data);

@@ -1,0 +1,3 @@
+codec,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-link-split-delta-workdec,8982882,2357354,2.0994188724732217,3.8105783009255294,0.304404,0.0315705,29.50973705995979,284.5340428564641,True
+bite-link-split-delta-filter,8982882,2357354,2.0994188724732217,3.8105783009255294,0.3029495,0.0325295,29.65141715038315,276.14571389046864,True

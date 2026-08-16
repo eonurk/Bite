@@ -487,6 +487,13 @@ static Buffer huffman_decode(const uint8_t *input, size_t input_size, int fast_l
     } else {
         HuffLookup table[HUFF_LOOKUP_SIZE];
         int use_lookup = fast_lookup && decoded_size >= HUFF_LOOKUP_SIZE;
+        if (use_lookup && fast_lookup == 2) {
+            size_t data_size = input_size - 6 - tree_size;
+            uint64_t estimated_tree_edges = (uint64_t)data_size * 8u;
+            uint64_t lookup_overhead = (uint64_t)decoded_size +
+                                       HUFF_LOOKUP_SIZE * HUFF_LOOKUP_BITS;
+            use_lookup = estimated_tree_edges > lookup_overhead;
+        }
         if (use_lookup) build_huffman_lookup(nodes, root, table);
         while (output.size < decoded_size) {
             int symbol = decode_huffman_symbol(&data_reader, nodes, root, table, use_lookup);
@@ -909,7 +916,7 @@ static void write_file(const char *path, const Buffer *buffer) {
 #ifndef BITE_NO_MAIN
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|d|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -942,16 +949,20 @@ int main(int argc, char **argv) {
     int is_delta_stride = strcmp(argv[1], "clblinksd") == 0 ||
                           strcmp(argv[1], "clblinksdf") == 0;
     int is_sampled_delta = strcmp(argv[1], "clblinksdf") == 0;
-    int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dslow") == 0;
+    int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dwork") == 0 ||
+                    strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|d|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
     Buffer input = read_file(argv[2]);
     Buffer output;
-    if (is_decode)
-        output = decompress_buffer(input.data, input.size, strcmp(argv[1], "d") == 0);
+    if (is_decode) {
+        int lookup_policy = strcmp(argv[1], "d") == 0 ? 1 :
+                            (strcmp(argv[1], "dwork") == 0 ? 2 : 0);
+        output = decompress_buffer(input.data, input.size, lookup_policy);
+    }
     else if (is_linked)
         output = compress_linked_blocked(input.data, input.size,
                                          is_gated_lazy ? 32 : (is_lazy ? MAX_MATCH : 0),
