@@ -57,6 +57,8 @@ Mode `clblinksopt2d` additionally considers, for each candidate length, the
 lowest modeled-cost distance among all matches visited by the hash chain.
 Mode `clblinksopt2df` fuses that match enumeration into the backward DP and
 stores only the selected distance per position.
+Mode `clblinksopt2dfs` shares one immutable match index across all optimized
+parsing passes.
 Decoder `dwork` builds the 8-bit Huffman lookup only when estimated tree-edge
 work exceeds one residual edge per symbol plus worst-case table construction.
 

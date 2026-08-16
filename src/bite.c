@@ -733,11 +733,52 @@ static void split_cost_model(const uint8_t *input, size_t input_size,
     for (unsigned field = 0; field < 4; ++field) free(fields[field].data);
 }
 
+typedef struct {
+    uint16_t *lengths;
+    uint16_t *offsets;
+    int32_t *previous;
+} MatchIndex;
+
+static MatchIndex build_match_index(const uint8_t *input, size_t input_size,
+                                    size_t start, size_t decoded_size) {
+    MatchIndex index = {0};
+    index.lengths = decoded_size
+        ? (uint16_t *)malloc(decoded_size * sizeof(*index.lengths)) : NULL;
+    index.offsets = decoded_size
+        ? (uint16_t *)malloc(decoded_size * sizeof(*index.offsets)) : NULL;
+    index.previous = input_size
+        ? (int32_t *)malloc(input_size * sizeof(*index.previous)) : NULL;
+    int32_t *heads = (int32_t *)malloc(HASH_SIZE * sizeof(*heads));
+    if ((decoded_size && (!index.lengths || !index.offsets)) ||
+        (input_size && !index.previous) || !heads)
+        fail("out of memory");
+    for (size_t i = 0; i < HASH_SIZE; ++i) heads[i] = -1;
+    for (size_t i = 0; i < start; ++i)
+        insert_position(input, input_size, i, heads, index.previous);
+    for (size_t pos = start; pos < input_size; ++pos) {
+        size_t length, offset;
+        find_match(input, input_size, pos, heads, index.previous, &length, &offset);
+        index.lengths[pos - start] = (uint16_t)length;
+        index.offsets[pos - start] = (uint16_t)offset;
+        insert_position(input, input_size, pos, heads, index.previous);
+    }
+    free(heads);
+    return index;
+}
+
+static void free_match_index(MatchIndex *index) {
+    free(index->previous);
+    free(index->offsets);
+    free(index->lengths);
+    *index = (MatchIndex){0};
+}
+
 static Buffer compress_entropy_parsed_range(const uint8_t *input, size_t input_size,
                                             size_t start, size_t decoded_size,
                                             const uint8_t *model_tokens,
                                             size_t model_size,
-                                            int alternative_distances) {
+                                            int alternative_distances,
+                                            const MatchIndex *shared_index) {
     if (input_size > INT32_MAX) fail("input exceeds entropy parser 2 GiB limit");
     if (start > input_size || decoded_size != input_size - start)
         fail("invalid entropy parsing range");
@@ -745,12 +786,16 @@ static Buffer compress_entropy_parsed_range(const uint8_t *input, size_t input_s
     uint16_t distance_high_costs[256], length_costs[256];
     split_cost_model(model_tokens, model_size, decoded_size, literal_costs,
                      distance_low_costs, distance_high_costs, length_costs);
+    if (shared_index && alternative_distances == 1)
+        fail("incompatible shared match index");
 
     int fused_distances = alternative_distances == 2;
-    uint16_t *match_lengths = decoded_size && !fused_distances
-        ? (uint16_t *)malloc(decoded_size * sizeof(*match_lengths)) : NULL;
-    uint16_t *match_offsets = decoded_size && !fused_distances
-        ? (uint16_t *)malloc(decoded_size * sizeof(*match_offsets)) : NULL;
+    uint16_t *match_lengths = shared_index ? shared_index->lengths :
+        (decoded_size && !fused_distances
+            ? (uint16_t *)malloc(decoded_size * sizeof(*match_lengths)) : NULL);
+    uint16_t *match_offsets = shared_index ? shared_index->offsets :
+        (decoded_size && !fused_distances
+            ? (uint16_t *)malloc(decoded_size * sizeof(*match_offsets)) : NULL);
     uint16_t *alternative_offsets = decoded_size && alternative_distances == 1
         ? (uint16_t *)malloc(decoded_size * ENTROPY_LENGTH_CHOICES *
                              sizeof(*alternative_offsets)) : NULL;
@@ -759,33 +804,39 @@ static Buffer compress_entropy_parsed_range(const uint8_t *input, size_t input_s
     uint16_t *choices = decoded_size
         ? (uint16_t *)malloc(decoded_size * sizeof(*choices)) : NULL;
     uint64_t *costs = (uint64_t *)malloc((decoded_size + 1u) * sizeof(*costs));
-    int32_t *heads = (int32_t *)malloc(HASH_SIZE * sizeof(*heads));
-    int32_t *previous = input_size ? (int32_t *)malloc(input_size * sizeof(*previous)) : NULL;
+    int32_t *heads = shared_index ? NULL :
+        (int32_t *)malloc(HASH_SIZE * sizeof(*heads));
+    int32_t *previous = shared_index ? shared_index->previous :
+        (input_size ? (int32_t *)malloc(input_size * sizeof(*previous)) : NULL);
     if ((decoded_size && (!choices ||
                           (!fused_distances && (!match_lengths || !match_offsets)) ||
                           (alternative_distances == 1 && !alternative_offsets) ||
-                          (fused_distances && !choice_offsets))) || !costs || !heads ||
+                          (fused_distances && !choice_offsets))) || !costs ||
+        (!shared_index && !heads) ||
         (input_size && !previous))
         fail("out of memory");
-    for (size_t i = 0; i < HASH_SIZE; ++i) heads[i] = -1;
-    for (size_t i = 0; i < start; ++i) insert_position(input, input_size, i, heads, previous);
-    for (size_t pos = start; pos < input_size; ++pos) {
-        if (!fused_distances) {
-            size_t length, offset;
-            if (alternative_distances) {
-                int32_t candidate = pos + 2u < input_size
-                    ? heads[hash3(input + pos)] : -1;
-                find_costed_matches(input, input_size, pos, candidate, previous,
-                                    distance_low_costs, distance_high_costs, &length,
-                                    &offset, alternative_offsets +
-                                        (pos - start) * ENTROPY_LENGTH_CHOICES);
-            } else {
-                find_match(input, input_size, pos, heads, previous, &length, &offset);
+    if (!shared_index) {
+        for (size_t i = 0; i < HASH_SIZE; ++i) heads[i] = -1;
+        for (size_t i = 0; i < start; ++i)
+            insert_position(input, input_size, i, heads, previous);
+        for (size_t pos = start; pos < input_size; ++pos) {
+            if (!fused_distances) {
+                size_t length, offset;
+                if (alternative_distances) {
+                    int32_t candidate = pos + 2u < input_size
+                        ? heads[hash3(input + pos)] : -1;
+                    find_costed_matches(input, input_size, pos, candidate, previous,
+                                        distance_low_costs, distance_high_costs, &length,
+                                        &offset, alternative_offsets +
+                                            (pos - start) * ENTROPY_LENGTH_CHOICES);
+                } else {
+                    find_match(input, input_size, pos, heads, previous, &length, &offset);
+                }
+                match_lengths[pos - start] = (uint16_t)length;
+                match_offsets[pos - start] = (uint16_t)offset;
             }
-            match_lengths[pos - start] = (uint16_t)length;
-            match_offsets[pos - start] = (uint16_t)offset;
+            insert_position(input, input_size, pos, heads, previous);
         }
-        insert_position(input, input_size, pos, heads, previous);
     }
 
     costs[decoded_size] = 0;
@@ -876,14 +927,16 @@ static Buffer compress_entropy_parsed_range(const uint8_t *input, size_t input_s
         }
         output.data[control_pos] = control;
     }
-    free(previous);
-    free(heads);
+    if (!shared_index) {
+        free(previous);
+        free(heads);
+        free(match_offsets);
+        free(match_lengths);
+    }
     free(costs);
     free(choices);
     free(choice_offsets);
     free(alternative_offsets);
-    free(match_offsets);
-    free(match_lengths);
     return output;
 }
 
@@ -1029,9 +1082,17 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
             split = split_huffman_encode(trial.data + HEADER_SIZE, payload_size, decoded_size);
         Buffer parsed_split = {0};
         if (entropy_parse) {
+            MatchIndex shared_index = {0};
+            const MatchIndex *shared = NULL;
+            if (entropy_parse > 4) {
+                shared_index = build_match_index(
+                    input + history_start, history_size + decoded_size,
+                    history_size, decoded_size);
+                shared = &shared_index;
+            }
             Buffer parsed_trial = compress_entropy_parsed_range(
                 input + history_start, history_size + decoded_size, history_size,
-                decoded_size, trial.data + HEADER_SIZE, payload_size, 0);
+                decoded_size, trial.data + HEADER_SIZE, payload_size, 0, shared);
             parsed_split = split_huffman_encode(parsed_trial.data + HEADER_SIZE,
                                                 parsed_trial.size - HEADER_SIZE,
                                                 decoded_size);
@@ -1039,7 +1100,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
                 Buffer iterated_trial = compress_entropy_parsed_range(
                     input + history_start, history_size + decoded_size, history_size,
                     decoded_size, parsed_trial.data + HEADER_SIZE,
-                    parsed_trial.size - HEADER_SIZE, 0);
+                    parsed_trial.size - HEADER_SIZE, 0, shared);
                 Buffer iterated_split = split_huffman_encode(
                     iterated_trial.data + HEADER_SIZE,
                     iterated_trial.size - HEADER_SIZE, decoded_size);
@@ -1054,7 +1115,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
                         input + history_start, history_size + decoded_size, history_size,
                         decoded_size, iterated_trial.data + HEADER_SIZE,
                         iterated_trial.size - HEADER_SIZE,
-                        entropy_parse > 3 ? 2 : 1);
+                        entropy_parse > 3 ? 2 : 1, shared);
                     Buffer distance_split = split_huffman_encode(
                         distance_trial.data + HEADER_SIZE,
                         distance_trial.size - HEADER_SIZE, decoded_size);
@@ -1069,6 +1130,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
                 free(iterated_trial.data);
             }
             free(parsed_trial.data);
+            free_match_index(&shared_index);
         }
         Buffer transformed_split = {0};
         size_t transformed_stride = 0;
@@ -1249,7 +1311,7 @@ static void write_file(const char *path, const Buffer *buffer) {
 #ifndef BITE_NO_MAIN
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|clblinksopt2d|clblinksopt2df|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|clblinksopt2d|clblinksopt2df|clblinksopt2dfs|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -1263,7 +1325,8 @@ int main(int argc, char **argv) {
                   strcmp(argv[1], "clblinksdf") == 0 || strcmp(argv[1], "clblinksopt") == 0 ||
                   strcmp(argv[1], "clblinksopt2") == 0 ||
                   strcmp(argv[1], "clblinksopt2d") == 0 ||
-                  strcmp(argv[1], "clblinksopt2df") == 0;
+                  strcmp(argv[1], "clblinksopt2df") == 0 ||
+                  strcmp(argv[1], "clblinksopt2dfs") == 0;
     int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0 ||
                     strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0;
     is_linked = is_linked || strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0;
@@ -1274,6 +1337,7 @@ int main(int argc, char **argv) {
     is_linked = is_linked || strcmp(argv[1], "clblinksopt2") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksopt2d") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksopt2df") == 0;
+    is_linked = is_linked || strcmp(argv[1], "clblinksopt2dfs") == 0;
     int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
                      strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 || is_linked;
     int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 ||
@@ -1283,7 +1347,8 @@ int main(int argc, char **argv) {
                      strcmp(argv[1], "clblinksdf") == 0 || strcmp(argv[1], "clblinksopt") == 0 ||
                      strcmp(argv[1], "clblinksopt2") == 0 ||
                      strcmp(argv[1], "clblinksopt2d") == 0 ||
-                     strcmp(argv[1], "clblinksopt2df") == 0;
+                     strcmp(argv[1], "clblinksopt2df") == 0 ||
+                     strcmp(argv[1], "clblinksopt2dfs") == 0;
     int is_split_entropy = strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
                            strcmp(argv[1], "clblinksg") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksd") == 0;
@@ -1292,26 +1357,30 @@ int main(int argc, char **argv) {
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2d") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2df") == 0;
+    is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksopt2dfs") == 0;
     int is_gated_lazy = strcmp(argv[1], "clblinksg") == 0;
     int is_delta_stride = strcmp(argv[1], "clblinksd") == 0 ||
                           strcmp(argv[1], "clblinksdf") == 0 ||
                           strcmp(argv[1], "clblinksopt") == 0 ||
                           strcmp(argv[1], "clblinksopt2") == 0 ||
                           strcmp(argv[1], "clblinksopt2d") == 0 ||
-                          strcmp(argv[1], "clblinksopt2df") == 0;
+                          strcmp(argv[1], "clblinksopt2df") == 0 ||
+                          strcmp(argv[1], "clblinksopt2dfs") == 0;
     int is_sampled_delta = strcmp(argv[1], "clblinksdf") == 0 ||
                            strcmp(argv[1], "clblinksopt") == 0 ||
                            strcmp(argv[1], "clblinksopt2") == 0 ||
                            strcmp(argv[1], "clblinksopt2d") == 0 ||
-                           strcmp(argv[1], "clblinksopt2df") == 0;
+                           strcmp(argv[1], "clblinksopt2df") == 0 ||
+                           strcmp(argv[1], "clblinksopt2dfs") == 0;
     int is_entropy_parse = strcmp(argv[1], "clblinksopt") == 0 ? 1 :
                            (strcmp(argv[1], "clblinksopt2") == 0 ? 2 :
                            (strcmp(argv[1], "clblinksopt2d") == 0 ? 3 :
-                           (strcmp(argv[1], "clblinksopt2df") == 0 ? 4 : 0)));
+                           (strcmp(argv[1], "clblinksopt2df") == 0 ? 4 :
+                           (strcmp(argv[1], "clblinksopt2dfs") == 0 ? 5 : 0))));
     int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dwork") == 0 ||
                     strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|clblinksopt2d|clblinksopt2df|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|clblinksopt|clblinksopt2|clblinksopt2d|clblinksopt2df|clblinksopt2dfs|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }

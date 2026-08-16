@@ -50,6 +50,7 @@ CODECS = [
     Codec("bite-link-split-optimal-iterated", str(ROOT / "bin/bite"), ("clblinksopt2", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-optimal-distances", str(ROOT / "bin/bite"), ("clblinksopt2d", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-optimal-distances-fused", str(ROOT / "bin/bite"), ("clblinksopt2df", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-link-split-optimal-distances-shared", str(ROOT / "bin/bite"), ("clblinksopt2dfs", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-delta-workdec", str(ROOT / "bin/bite"), ("clblinksdf", "{input}", "{output}"), ("dwork", "{input}", "{output}"), True),
     Codec("bite-link-split-delta-slowdec", str(ROOT / "bin/bite"), ("clblinksd", "{input}", "{output}"), ("dslow", "{input}", "{output}"), True),
     Codec("gzip-1", "gzip", ("-1", "-c", "{input}"), ("-d", "-c", "{input}")),
