@@ -35,6 +35,10 @@
   2.286% to 4,324,638 bytes, keeps match state bounded, and leaves decode speed
   unchanged. Encode throughput falls 20.386% and RSS rises 4.734% versus
   independent lazy because prior history is re-indexed for each block.
+- `EXP-0006` combines linked history and static Huffman in `cblinkh`/`clblinkh`.
+  The lazy mode is Bite's current minimum-size point: 3,920,565 bytes (3.492
+  bits/byte), 25.60 MB/s encode, 56.21 MB/s decode, and 6.90 MB encoder peak
+  RSS. It is 0.523% smaller than gzip-1, but zstd-1 remains smaller and faster.
 
 ## What consistently fails
 
@@ -91,7 +95,10 @@
    history indexing is slower than both independent v2 and whole-file v1.
 5. The experimental Huffman decoder walks one tree edge per bit. Its 20.754%
    decode-throughput cost prevents the size gain from creating an external
-   Pareto point; table-based or canonical decoding is an optimization target.
+  Pareto point; table-based or canonical decoding is an optimization target.
+6. Linked Huffman improves size but compounds costs: versus independent Huffman
+   it is 22.589% slower to encode, 5.227% slower to decode, and uses 18.927%
+   more encoder RSS. It does not create an external frontier point.
 
 ## Promising unexplored directions
 
@@ -150,7 +157,7 @@ Ranking after `EXP-0004` (first item completed by `EXP-0005`):
 5. Faster Huffman decoding through canonical/table lookup without changing the
    probability model.
 
-Current ranking after `EXP-0005`:
+Ranking after `EXP-0005` (first item completed by `EXP-0006`):
 
 1. Combine linked-history parsing with exact-selected static Huffman coding.
    This directly tests whether the two strongest size mechanisms compound.
@@ -159,6 +166,16 @@ Current ranking after `EXP-0005`:
 3. Gated lazy parsing to retain most ratio gain with fewer lookahead searches.
 4. Reversible stride/byte-plane transforms for scientific and raw image blocks.
 5. Faster Huffman decoding through canonical/table lookup.
+
+Current ranking after `EXP-0006`:
+
+1. Split token controls, literals, distances, and lengths into separate entropy
+   alphabets or contexts while preserving exact block selection.
+2. Gated lazy parsing to reduce needless next-match searches.
+3. Reversible stride/byte-plane transforms for scientific and raw image blocks.
+4. Faster canonical/table Huffman decoding for the retained entropy modes.
+5. Persistent circular match chains across blocks to avoid linked-history
+   re-indexing while preserving bounded memory.
 
 ## Interactions between components
 
@@ -194,6 +211,11 @@ Current ranking after `EXP-0005`:
 - Re-indexing the prior 65,535 bytes costs 20.386% encode throughput. A future
   streaming/circular match finder should preserve chains across block headers
   rather than rebuilding history.
+- Linked history and Huffman partially overlap rather than add independently.
+  Linked Huffman is 2.002% smaller than independent Huffman, not the 2.286% raw
+  linked gain plus 9.606% Huffman gain. The combined mode still improves
+  Canterbury 6.459%, JSON 5.089%, source 7.436%, text 14.834%, and XML 6.025%
+  versus independent Huffman. Canterbury `ptt5` regresses only four bytes.
 
 ## Known benchmark artifacts
 
@@ -212,6 +234,10 @@ Current ranking after `EXP-0005`:
 - `EXP-0005` validated this workflow: the two-mode screen took 6.9 seconds and
   the three-repeat validation 6.7 seconds while 13 external codec summaries
   were fingerprint-validated from `EXP-0004`. Fresh timing remained serial.
+- Three committed `EXP-0005-screen` artifacts unexpectedly disappeared during
+  the `EXP-0006` cycle despite no results-cleaning command. They were restored
+  byte-for-byte from Git before documentation; all result directories were then
+  audited for the required metadata, per-file, and summary files.
 - The generated corpus is deterministic and its manifest is hashed. Canterbury
   is pinned to archive SHA-256
   `f140e8a5b73d3f53198555a63bfb827889394a42f20825df33c810c3d5e3f8fb`.
@@ -226,8 +252,9 @@ Current ranking after `EXP-0005`:
   gain while recovering enough encoder speed to approach a useful frontier.
 - Separating literal and match-field entropy streams may outperform the current
   single order-0 token-byte alphabet without a more complex probability model.
-- Huffman coding of linked-history token payloads may combine the 2.286% linked
-  gain with the 9.606% entropy gain and approach or beat gzip-1 size.
+- Separate entropy alphabets may capture field-specific distributions hidden by
+  the current single token-byte Huffman model, especially literal bias versus
+  distance/length bytes.
 
 ## Initial external Pareto frontier (2026-08-16)
 
