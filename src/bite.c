@@ -105,7 +105,7 @@ static void find_match(const uint8_t *input, size_t input_size, size_t pos,
     }
 }
 
-static Buffer compress_buffer(const uint8_t *input, size_t input_size) {
+static Buffer compress_buffer(const uint8_t *input, size_t input_size, int lazy) {
     if (input_size > INT32_MAX) fail("input exceeds baseline 2 GiB limit");
     Buffer output = {0};
     reserve(&output, HEADER_SIZE + input_size / 2 + 64);
@@ -128,16 +128,27 @@ static Buffer compress_buffer(const uint8_t *input, size_t input_size) {
         for (unsigned bit = 0; bit < 8 && pos < input_size; ++bit) {
             size_t length, offset;
             find_match(input, input_size, pos, heads, previous, &length, &offset);
+            int current_inserted = 0;
+            if (lazy && length && length < MAX_MATCH && pos + 1 < input_size) {
+                size_t next_length, next_offset;
+                insert_position(input, input_size, pos, heads, previous);
+                current_inserted = 1;
+                find_match(input, input_size, pos + 1, heads, previous,
+                           &next_length, &next_offset);
+                (void)next_offset;
+                if (next_length > length + 1) length = 0;
+            }
             if (length) {
                 control |= (uint8_t)(1u << bit);
                 append_byte(&output, (uint8_t)((offset - 1) & 0xffu));
                 append_byte(&output, (uint8_t)((offset - 1) >> 8));
                 append_byte(&output, (uint8_t)(length - MIN_MATCH));
-                for (size_t i = 0; i < length; ++i) insert_position(input, input_size, pos + i, heads, previous);
+                for (size_t i = (size_t)current_inserted; i < length; ++i)
+                    insert_position(input, input_size, pos + i, heads, previous);
                 pos += length;
             } else {
                 append_byte(&output, input[pos]);
-                insert_position(input, input_size, pos, heads, previous);
+                if (!current_inserted) insert_position(input, input_size, pos, heads, previous);
                 ++pos;
             }
         }
@@ -206,14 +217,17 @@ static void write_file(const char *path, const Buffer *buffer) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4 || (strcmp(argv[1], "c") != 0 && strcmp(argv[1], "d") != 0)) {
-        fprintf(stderr, "usage: bite c|d INPUT OUTPUT\n");
+    if (argc != 4 || (strcmp(argv[1], "c") != 0 && strcmp(argv[1], "cl") != 0 && strcmp(argv[1], "d") != 0)) {
+        fprintf(stderr, "usage: bite c|cl|d INPUT OUTPUT\n");
+        fprintf(stderr, "  c: greedy compression; cl: lazy compression; d: decompression\n");
         return 2;
     }
     Buffer input = read_file(argv[2]);
-    Buffer output = strcmp(argv[1], "c") == 0
-        ? compress_buffer(input.data, input.size)
-        : decompress_buffer(input.data, input.size);
+    Buffer output;
+    if (strcmp(argv[1], "d") == 0)
+        output = decompress_buffer(input.data, input.size);
+    else
+        output = compress_buffer(input.data, input.size, strcmp(argv[1], "cl") == 0);
     write_file(argv[3], &output);
     free(output.data);
     free(input.data);

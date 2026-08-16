@@ -20,5 +20,4 @@ benchmark: bin/bite corpus
 	python3 scripts/benchmark.py --repeats 3
 
 clean:
-	rm -rf bin build results
-
+	rm -rf bin build
