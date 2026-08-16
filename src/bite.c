@@ -215,6 +215,15 @@ typedef struct {
     unsigned bit;
 } BitReader;
 
+typedef struct {
+    int16_t symbol;
+    int16_t node;
+    uint8_t bits;
+} HuffLookup;
+
+#define HUFF_LOOKUP_BITS 8u
+#define HUFF_LOOKUP_SIZE (1u << HUFF_LOOKUP_BITS)
+
 static void write_bit(BitWriter *writer, unsigned bit) {
     writer->byte = (uint8_t)((writer->byte << 1) | (bit & 1u));
     if (++writer->used == 8) {
@@ -241,6 +250,24 @@ static int read_bit(BitReader *reader) {
         ++reader->byte;
     }
     return bit;
+}
+
+static int peek_bits(const BitReader *reader, unsigned count, uint32_t *value) {
+    size_t remaining = (reader->size - reader->byte) * 8u - reader->bit;
+    if (remaining < count || count > 16) return 0;
+    uint32_t window = 0;
+    for (unsigned i = 0; i < 3; ++i) {
+        window <<= 8;
+        if (reader->byte + i < reader->size) window |= reader->data[reader->byte + i];
+    }
+    *value = (window >> (24u - reader->bit - count)) & ((1u << count) - 1u);
+    return 1;
+}
+
+static void skip_bits(BitReader *reader, unsigned count) {
+    unsigned total = reader->bit + count;
+    reader->byte += total / 8u;
+    reader->bit = total % 8u;
 }
 
 static int huff_less(const HuffNode *nodes, int a, int b) {
@@ -392,7 +419,44 @@ static int deserialize_tree(BitReader *reader, HuffNode *nodes, int *node_count,
     return index;
 }
 
-static Buffer huffman_decode(const uint8_t *input, size_t input_size) {
+static void build_huffman_lookup(const HuffNode *nodes, int root,
+                                 HuffLookup table[HUFF_LOOKUP_SIZE]) {
+    for (unsigned prefix = 0; prefix < HUFF_LOOKUP_SIZE; ++prefix) {
+        int node = root;
+        unsigned used = 0;
+        while (used < HUFF_LOOKUP_BITS && nodes[node].symbol < 0) {
+            unsigned bit = (prefix >> (HUFF_LOOKUP_BITS - 1u - used)) & 1u;
+            node = bit ? nodes[node].right : nodes[node].left;
+            ++used;
+        }
+        if (nodes[node].symbol >= 0)
+            table[prefix] = (HuffLookup){(int16_t)nodes[node].symbol, -1, (uint8_t)used};
+        else
+            table[prefix] = (HuffLookup){-1, (int16_t)node, HUFF_LOOKUP_BITS};
+    }
+}
+
+static int decode_huffman_symbol(BitReader *reader, const HuffNode *nodes, int root,
+                                 const HuffLookup table[HUFF_LOOKUP_SIZE], int use_lookup) {
+    int node = root;
+    if (use_lookup) {
+        uint32_t prefix;
+        if (peek_bits(reader, HUFF_LOOKUP_BITS, &prefix)) {
+            HuffLookup entry = table[prefix];
+            skip_bits(reader, entry.bits);
+            if (entry.symbol >= 0) return entry.symbol;
+            node = entry.node;
+        }
+    }
+    while (nodes[node].symbol < 0) {
+        int bit = read_bit(reader);
+        if (bit < 0) return -1;
+        node = bit ? nodes[node].right : nodes[node].left;
+    }
+    return nodes[node].symbol;
+}
+
+static Buffer huffman_decode(const uint8_t *input, size_t input_size, int fast_lookup) {
     if (input_size < 6) fail("truncated Huffman header");
     size_t decoded_size = read_u32le(input);
     size_t tree_size = read_u16le(input + 4);
@@ -420,14 +484,13 @@ static Buffer huffman_decode(const uint8_t *input, size_t input_size) {
     if (nodes[root].symbol >= 0) {
         while (output.size < decoded_size) append_byte(&output, (uint8_t)nodes[root].symbol);
     } else {
+        HuffLookup table[HUFF_LOOKUP_SIZE];
+        int use_lookup = fast_lookup && decoded_size >= HUFF_LOOKUP_SIZE;
+        if (use_lookup) build_huffman_lookup(nodes, root, table);
         while (output.size < decoded_size) {
-            int node = root;
-            while (nodes[node].symbol < 0) {
-                int bit = read_bit(&data_reader);
-                if (bit < 0) fail("truncated Huffman data");
-                node = bit ? nodes[node].right : nodes[node].left;
-            }
-            append_byte(&output, (uint8_t)nodes[node].symbol);
+            int symbol = decode_huffman_symbol(&data_reader, nodes, root, table, use_lookup);
+            if (symbol < 0) fail("truncated Huffman data");
+            append_byte(&output, (uint8_t)symbol);
         }
     }
     while ((padding = read_bit(&data_reader)) >= 0)
@@ -480,7 +543,7 @@ static Buffer split_huffman_encode(const uint8_t *input, size_t input_size,
 
 static void split_huffman_decode(Buffer *output, const uint8_t *input,
                                  size_t input_size, size_t decoded_size,
-                                 size_t match_base) {
+                                 size_t match_base, int fast_lookup) {
     if (input_size < 20 || match_base > output->size) fail("invalid split Huffman header");
     uint32_t sizes[5];
     size_t offset = 20;
@@ -494,7 +557,7 @@ static void split_huffman_decode(Buffer *output, const uint8_t *input,
     Buffer streams[5] = {{0}};
     offset = 20;
     for (unsigned i = 0; i < 5; ++i) {
-        streams[i] = huffman_decode(input + offset, sizes[i]);
+        streams[i] = huffman_decode(input + offset, sizes[i], fast_lookup);
         offset += sizes[i];
     }
     if (streams[2].size != streams[3].size || streams[2].size != streams[4].size)
@@ -722,7 +785,7 @@ static void decompress_payload(Buffer *output, const uint8_t *input,
     if (ip != input_size) fail("trailing compressed data");
 }
 
-static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
+static Buffer decompress_buffer(const uint8_t *input, size_t input_size, int fast_huffman) {
     if (input_size < HEADER_SIZE || memcmp(input, "BITE", 4) != 0 || (input[4] != 1 && input[4] != 2))
         fail("invalid or unsupported stream");
     uint64_t decoded_u64 = read_u64le(input + 8);
@@ -753,7 +816,7 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
             decompress_payload(&output, input + ip, block_stored, block_decoded, match_base);
         } else if (mode == 2) {
             size_t match_base = output.size;
-            Buffer token_stream = huffman_decode(input + ip, block_stored);
+            Buffer token_stream = huffman_decode(input + ip, block_stored, fast_huffman);
             decompress_payload(&output, token_stream.data, token_stream.size, block_decoded, match_base);
             free(token_stream.data);
         } else if (mode == 4) {
@@ -761,18 +824,19 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size) {
             decompress_payload(&output, input + ip, block_stored, block_decoded, match_base);
         } else if (mode == 5) {
             size_t match_base = output.size > WINDOW ? output.size - WINDOW : 0;
-            Buffer token_stream = huffman_decode(input + ip, block_stored);
+            Buffer token_stream = huffman_decode(input + ip, block_stored, fast_huffman);
             decompress_payload(&output, token_stream.data, token_stream.size, block_decoded, match_base);
             free(token_stream.data);
         } else if (mode == 6) {
             size_t match_base = output.size > WINDOW ? output.size - WINDOW : 0;
-            split_huffman_decode(&output, input + ip, block_stored, block_decoded, match_base);
+            split_huffman_decode(&output, input + ip, block_stored, block_decoded,
+                                 match_base, fast_huffman);
         } else {
             if (block_stored < 1) fail("truncated delta block");
             size_t block_start = output.size;
             size_t stride = input[ip];
             split_huffman_decode(&output, input + ip + 1, block_stored - 1,
-                                 block_decoded, block_start);
+                                 block_decoded, block_start, fast_huffman);
             inverse_delta(&output, block_start, stride);
         }
         ip += block_stored;
@@ -805,7 +869,7 @@ static void write_file(const char *path, const Buffer *buffer) {
 
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|d INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|d|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -832,16 +896,16 @@ int main(int argc, char **argv) {
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksd") == 0;
     int is_gated_lazy = strcmp(argv[1], "clblinksg") == 0;
     int is_delta_stride = strcmp(argv[1], "clblinksd") == 0;
-    int is_decode = strcmp(argv[1], "d") == 0;
+    int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|d INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|d|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
     Buffer input = read_file(argv[2]);
     Buffer output;
     if (is_decode)
-        output = decompress_buffer(input.data, input.size);
+        output = decompress_buffer(input.data, input.size, strcmp(argv[1], "d") == 0);
     else if (is_linked)
         output = compress_linked_blocked(input.data, input.size,
                                          is_gated_lazy ? 32 : (is_lazy ? MAX_MATCH : 0),

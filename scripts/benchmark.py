@@ -45,6 +45,7 @@ CODECS = [
     Codec("bite-link-split-lazy", str(ROOT / "bin/bite"), ("clblinks", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-gated", str(ROOT / "bin/bite"), ("clblinksg", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-delta", str(ROOT / "bin/bite"), ("clblinksd", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-link-split-delta-slowdec", str(ROOT / "bin/bite"), ("clblinksd", "{input}", "{output}"), ("dslow", "{input}", "{output}"), True),
     Codec("gzip-1", "gzip", ("-1", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("gzip-9", "gzip", ("-9", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("zstd-1", "zstd", ("-q", "-1", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),
