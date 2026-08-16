@@ -52,6 +52,10 @@
   decode, and 5.44 MB encoder RSS. On the frozen development corpus it creates
   a size/encode frontier point between xz-6 and xz-1, but broader raw/scientific
   evidence is required because the largest gain is a synthetic RGB gradient.
+- `EXP-0010` adds an 8-bit Huffman prefix lookup for streams with at least 256
+  decoded symbols, retaining tree fallback and `dslow` as a reproducible control.
+  On identical mode-7 streams, five-repeat decode throughput improves 10.837%
+  to 64.04 MB/s with unchanged size, encode speed, binary size, and RSS.
 
 ## What consistently fails
 
@@ -113,9 +117,10 @@
    relative to v1 lazy, despite improving total heterogeneous-corpus size.
    `EXP-0005` linked mode recovers nearly all of this ratio, but its repeated
    history indexing is slower than both independent v2 and whole-file v1.
-5. The experimental Huffman decoder walks one tree edge per bit. Its 20.754%
-   decode-throughput cost prevents the size gain from creating an external
-  Pareto point; table-based or canonical decoding is an optimization target.
+5. Huffman decoding now has an 8-bit prefix fast path, but table construction
+   still adds overhead to streams that barely meet the 256-symbol gate. Binary,
+   executable, image, and tiny-file category decode rates regress 1–5% while
+   entropy-heavy categories improve strongly.
 6. Linked Huffman improves size but compounds costs: versus independent Huffman
    it is 22.589% slower to encode, 5.227% slower to decode, and uses 18.927%
    more encoder RSS. It does not create an external frontier point.
@@ -224,7 +229,7 @@ Ranking after `EXP-0008` (first item completed by `EXP-0009`):
 5. Cost-aware lazy gating using estimated token/entropy cost rather than a fixed
    match-length threshold.
 
-Current ranking after `EXP-0009`:
+Ranking after `EXP-0009` (first item completed by `EXP-0010`):
 
 1. Faster canonical/table Huffman decoding for multi-stream modes 6 and 7.
 2. Context-split literal models within the isolated literal stream.
@@ -232,6 +237,15 @@ Current ranking after `EXP-0009`:
 4. Cheaper transform prefiltering that estimates stride benefit from a sample
    rather than eight full-block histogram passes.
 5. Cost-aware lazy gating.
+
+Current ranking after `EXP-0010`:
+
+1. Context-split literal models within the isolated literal stream.
+2. Persistent circular match chains across linked blocks.
+3. Cheaper sampled transform prefiltering.
+4. Cost-aware lazy gating.
+5. Adaptive Huffman lookup eligibility based on stream length and tree/code
+   depth, avoiding table construction for low-benefit distributions.
 
 ## Interactions between components
 
@@ -288,6 +302,11 @@ Current ranking after `EXP-0009`:
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
   but the mechanism does not help the public Canterbury corpus.
+- Prefix lookup gains concentrate where split streams are large and entropic:
+  scientific decode +50.69%, JSON +23.44%, XML +22.47%, Canterbury +9.42%,
+  source +8.90%, and text +6.20%. The same table threshold is mildly harmful
+  on binary (-2.13%), pseudo-executable (-5.30%), image (-1.14%), and tiny files
+  (-1.98%), motivating distribution-aware eligibility rather than a size gate.
 
 ## Known benchmark artifacts
 
@@ -335,6 +354,8 @@ Current ranking after `EXP-0009`:
   fixed 32-byte policy while retaining its broad encode-speed gain.
 - Context-dependent literal alphabets may further improve structured text now
   that literals are isolated from control and match fields.
+- Huffman lookup should be enabled by estimated decoded bit work, not decoded
+  symbol count alone, to avoid table-build regressions on shallow/skewed trees.
 
 ## Initial external Pareto frontier (2026-08-16)
 
