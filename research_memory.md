@@ -168,6 +168,13 @@
   byte. Nevertheless one-repeat encode gains were only 0.439% on dev and 0.011%
   on public research, far below process noise. The condition covers too little
   work to justify a retained mode.
+- `EXP-0026` two length-conditioned distance alphabets were rejected as corpus
+  concentrated. Exact block selection saved 9,226 bytes (0.406%) on dev, but
+  only generated pseudo-text, generated JSON, and `kennedy.xls` changed. The
+  separate Calgary+Large suite saved just 26 bytes (0.000634%) in one `geo`
+  block, while the extra conditional model/DP cut encode throughput 42.529%
+  and 37.026%. A real local dependency is not enough when it fails the broad
+  validation gate.
 
 ## Dataset-specific observations
 
@@ -210,6 +217,11 @@
   improves 27.0%, JSON 10.0%, XML 11.2%, and large Canterbury text 3–4%. On
   public research, E. coli improves 4.52%, bible 3.87%, world 2.77%, and every
   Calgary file improves 0.29–3.65%. This is not driven by synthetic transforms.
+- The EXP-0026 short-versus-long distance context selected 33 observed blocks:
+  32 in three dev files and one in Calgary `geo`. All 16 `kennedy.xls` blocks
+  and 13 generated JSON blocks selected it, but 15 of 16 public research files
+  were unchanged. Length/distance dependence exists in a narrow structured-
+  binary/JSON regime rather than as a broad order-0 coding weakness.
 - Huffman token coding is broadly effective on compressible categories:
   Canterbury -22.057%, pseudo-executable -28.925%, JSON -13.918%, source
   -20.906%, repetitive text -27.784%, and XML -21.684% versus v2 lazy. It has
@@ -584,6 +596,19 @@ Ranking after `EXP-0025`:
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
+Ranking after `EXP-0026`:
+
+1. Share or stream split-field demultiplexing and Huffman statistics between
+   parse/model stages, preserving EXP-0023's exact output.
+2. Reduce repeated costed-candidate comparisons with reusable per-block cost
+   summaries; require identical choices before treating timing as evidence.
+3. Revisit literal context only with shared/cheap tables that directly address
+   EXP-0011's serialization and pseudo-text concentration failures.
+4. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
+5. Reconsider conditional distance coding only with a representation that
+   avoids extra Huffman trees and first demonstrates broad validation signal.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -691,6 +716,12 @@ Ranking after `EXP-0025`:
   parent/first-parse equality makes the second normal DP redundant, but it is
   too uncommon or confined to low-work blocks to move throughput. Broader
   convergence heuristics would sacrifice output guarantees and need new evidence.
+- `EXP-0026` shows that conditional modeling and optimized parsing can reinforce
+  each other locally: the new representation wins 33 blocks after its DP uses
+  matching conditional costs. Exact selection prevents size regressions, but
+  it cannot recover the 37–43% encoder cost, and 32 of those wins occur in only
+  three dev files. Representation/model passes need a broad structural signal
+  before being added to the maximum mode.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -823,11 +854,12 @@ Ranking after `EXP-0025`:
   EXP-0018 confirms this; open questions are model iteration, alternative
   distances, and how much computation can be shared or avoided. EXP-0019 rules
   out parent-split-versus-raw gating as a broadly useful avoidance mechanism.
-- Distance modeling may need joint length/distance classes or recency ranks;
-  plain modulo deltas between consecutive distances won no tested block.
-  EXP-0021 confirms that length-specific selection among existing distances is
-  broadly useful; the open problem is retaining it without exhaustive extra
-  search and storage.
+- Distance modeling may need dependencies beyond order-0 marginal bytes, but
+  plain modulo deltas won no tested block and EXP-0026's 4-7 versus 8+ Huffman
+  contexts failed to reproduce broadly. EXP-0021 confirms that length-specific
+  selection among existing distances is broadly useful; the open problem is
+  retaining that selection cheaply, not adding more serialized trees without
+  new cross-corpus evidence.
 - EXP-0022 resolves the storage half of that problem without changing output;
   EXP-0023 then shares the invariant match structure across model iterations,
   recovering broad speed. Costed candidate comparison itself remains open.
@@ -840,6 +872,10 @@ Ranking after `EXP-0025`:
   split order-0 streams miss, rather than recombining those fields.
 - Exact first-parse fixed-point stopping is closed by EXP-0025 as a practical
   speed mechanism: it is correct but produces sub-noise gains on both suites.
+- Repeated split-field demultiplexing, frequency collection, and Huffman tree
+  construction remain unshared across three model/parse stages. EXP-0023 moved
+  match finding out of that loop, so identical-output sharing here is the next
+  direct test of maximum-mode compute rather than another corpus-sensitive gate.
 - Huffman lookup should be enabled by estimated decoded bit work, not decoded
   symbol count alone. `EXP-0017` resolves the earlier ambiguity with repeated
   startup-free evidence and retains the work gate as optional `dwork`.
