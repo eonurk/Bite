@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import argparse
+import concurrent.futures
 import hashlib
+import os
 import random
 import subprocess
 import tempfile
@@ -7,6 +10,33 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = sorted(p for p in (ROOT / "corpus" / "dev").rglob("*") if p.is_file() and p.name != "MANIFEST.json")
+
+
+def digest(path: Path) -> bytes:
+    value = hashlib.sha256()
+    with open(path, "rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            value.update(chunk)
+    return value.digest()
+
+
+def roundtrip(task: tuple[str, int, Path, bytes, Path]) -> None:
+    mode, index, source, source_hash, temp = task
+    encoded = temp / f"{mode}-{index}.bite"
+    decoded = temp / f"{mode}-{index}.decoded"
+    subprocess.run([ROOT / "bin/bite", mode, source, encoded], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    subprocess.run([ROOT / "bin/bite", "d", encoded, decoded], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if source.stat().st_size != decoded.stat().st_size or source_hash != digest(decoded):
+        raise RuntimeError(f"round-trip mismatch ({mode}): {source}")
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1))
+args = parser.parse_args()
+if args.jobs < 1:
+    raise SystemExit("jobs must be positive")
 
 with tempfile.TemporaryDirectory() as directory:
     temp = Path(directory)
@@ -19,14 +49,10 @@ with tempfile.TemporaryDirectory() as directory:
             path.write_bytes(data)
             edge_files.append(path)
     sources = FILES + edge_files
-    for mode in ("c", "cl", "cb", "clb", "cbh", "clbh"):
-        for index, source in enumerate(sources):
-            encoded = temp / f"{mode}-{index}.bite"
-            decoded = temp / f"{mode}-{index}.decoded"
-            subprocess.run([ROOT / "bin/bite", mode, source, encoded], check=True)
-            subprocess.run([ROOT / "bin/bite", "d", encoded, decoded], check=True)
-            source_hash = hashlib.sha256(source.read_bytes()).digest()
-            decoded_hash = hashlib.sha256(decoded.read_bytes()).digest()
-            if source_hash != decoded_hash:
-                raise SystemExit(f"round-trip mismatch ({mode}): {source}")
-        print(f"all {len(sources)} files round-trip exactly in mode {mode}")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:
+        hashes = list(executor.map(digest, sources))
+        modes = ("c", "cl", "cb", "clb", "cbh", "clbh")
+        tasks = [(mode, index, source, hashes[index], temp)
+                 for mode in modes for index, source in enumerate(sources)]
+        list(executor.map(roundtrip, tasks))
+    print(f"all {len(sources)} files round-trip exactly in {len(modes)} modes ({args.jobs} jobs)")

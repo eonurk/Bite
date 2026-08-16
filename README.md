@@ -33,3 +33,24 @@ Experimental modes `cbh` and `clbh` add a third exact-cost candidate: a static
 Huffman encoding of the LZ token payload. Its payload includes the decoded token
 size and a compact serialized Huffman tree; blocks use it only when the complete
 representation is smaller than both raw and plain-LZ alternatives.
+
+## Staged experiments
+
+Routine experiments do not rerun every historical mode and slow external tool:
+
+```sh
+# One-repeat candidate screen against its direct parent.
+make benchmark-screen CODECS="bite-new bite-parent" LABEL=exp-XXXX
+
+# Three-repeat validation after a promising screen.
+make benchmark-validate CODECS="bite-new bite-parent" LABEL=exp-XXXX
+
+# Periodic full audit after environment/method changes or several experiments.
+make benchmark
+```
+
+Screen and validation runs reuse external rows from `results/exp-0004` by
+default. The cache is accepted only if platform, corpus paths/sizes/hashes, and
+every external tool version match. Metadata records the cache source, Git head,
+Bite binary hash, compiler, benchmark stage, and cache fingerprint. Timing
+trials remain serial; only corpus hashing and correctness tests are parallel.

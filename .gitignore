@@ -1,6 +1,8 @@
 /bin/
 /build/
 /corpus/
+__pycache__/
+*.pyc
 *.bite
 *.decoded
 .DS_Store
