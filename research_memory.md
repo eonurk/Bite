@@ -67,6 +67,14 @@
   30-repeat in-process runs improve identical-stream dev decode by 3.038% and
   3.746%, and public research by 1.217% and 0.622%. Size, format, encoder,
   binary size, and process-level RSS are unchanged.
+- `EXP-0018` retains maximum-ratio mode `clblinksopt`. It derives literal,
+  distance, and length bit costs from the parent block's actual split-Huffman
+  trees, precomputes the longest match at every position, and runs a backward
+  dynamic program over literals plus the eight longest match lengths. The
+  result is re-Huffman-coded and exact-selected as ordinary mode 6. Dev size
+  falls 2.509% to 2,298,212 bytes; public research falls 3.616% to 4,154,139
+  bytes, with all 16 public files improving and no file on either suite
+  regressing. It is intentionally slow: encode throughput falls 70–74%.
 - Routine candidate evaluation now preserves the original frozen dev corpus and
   adds a separately addressable 13,787,888-byte public research suite: 13
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
@@ -152,6 +160,10 @@
   while the separate Calgary+Large suite has 4 improvements / 12 regressions.
   The apparent dev win came mainly from generated XML/JSON; public books and
   text generally worsened.
+- Bounded entropy-cost parsing generalizes broadly. On dev, generated source
+  improves 27.0%, JSON 10.0%, XML 11.2%, and large Canterbury text 3–4%. On
+  public research, E. coli improves 4.52%, bible 3.87%, world 2.77%, and every
+  Calgary file improves 0.29–3.65%. This is not driven by synthetic transforms.
 - Huffman token coding is broadly effective on compressible categories:
   Canterbury -22.057%, pseudo-executable -28.925%, JSON -13.918%, source
   -20.906%, repetitive text -27.784%, and XML -21.684% versus v2 lazy. It has
@@ -176,7 +188,9 @@
    `EXP-0008` shows a fixed length gate recovers some search cost, but its
    dataset interaction is sharp. `EXP-0014` shows a local raw-token density
    proxy does not generalize; actual entropy costs or a longer parsing horizon
-   are required.
+   are required. `EXP-0018` demonstrates that block-derived field costs plus a
+   whole-block bounded DP produce broad ratio gains, at substantial compute and
+   memory cost.
 3. V1 stores a four-byte predecessor per input byte and has a 2 GiB limit. V2
    bounds match-state allocation to 64 KiB and cuts measured encoder RSS by
    44.8%, but file I/O and final output are still whole-file buffers rather than
@@ -401,7 +415,7 @@ Ranking after `EXP-0016` (first item completed by BENCH-0002 and `EXP-0017`):
 5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
    after profiling the rejected 64-bit design.
 
-Current ranking after `EXP-0017`:
+Ranking after `EXP-0017` (first item completed by retained `EXP-0018`):
 
 1. Parse decisions based on actual split-entropy costs over a bounded horizon,
    explicitly avoiding the rejected raw 25/33-bit proxy.
@@ -413,6 +427,19 @@ Current ranking after `EXP-0017`:
    after profiling the rejected 64-bit design.
 5. Promote `dwork` to the default decoder only after a periodic process audit;
    keep explicit `d` meanwhile for historical comparability.
+
+Current ranking after `EXP-0018`:
+
+1. Share token demultiplexing, Huffman statistics, and match precomputation
+   between parent and optimized candidates to recover EXP-0018 encode speed.
+2. Iterate the optimized parse's entropy model once and test whether model/parse
+   convergence adds broad ratio without disproportionate extra work.
+3. Add alternative match distances or joint length/distance costs to the DP;
+   current choices use only the longest match's distance.
+4. Block-level entropy-model selection that exact-costs representations while
+   reusing parsed streams, prioritizing public-corpus gains.
+5. Compact persistent match chains using 32-bit/epoch-tagged positions, only
+   after profiling the rejected 64-bit design.
 
 ## Interactions between components
 
@@ -481,6 +508,11 @@ Current ranking after `EXP-0017`:
   research: the unchanged gate was inconclusive under process timing but showed
   repeatable positive steady-state gains after startup removal. Reversing codec
   order preserved the sign on both suites, avoiding a threshold sweep.
+- `EXP-0018` succeeds where the EXP-0014 local proxy failed: costs come from
+  real block Huffman trees and decisions compose through a whole-block DP.
+  Exact selection protects size, but not the extra all-position match search,
+  DP, second token stream, or five-tree entropy encode that drive its 70–74%
+  encode regression.
 - Delta-stride and split entropy interact extremely strongly on low-order raw
   structure: the RGB gradient falls from 1,179,826 to roughly 4 KB. Scientific
   readings fall by 82,151 bytes. Exact selection prevents all size regressions,
@@ -531,6 +563,9 @@ Current ranking after `EXP-0017`:
   tiny-file medians do not round to zero. It remains complementary: use process
   runs for RSS/startup/external comparisons and in-process runs for steady-state
   codec deltas.
+- EXP-0018 increases the production binary from 73,496 to 91,000 bytes
+  (+23.816%). Treat this as part of the maximum-mode tradeoff; future parser
+  work should seek shared machinery or compile-time optionality.
 - The new in-process baseline exposes the prefix lookup's steady-state effect:
   versus `dslow`, decode is 47.7% faster on dev (277.29 vs 187.73 MB/s) and
   68.3% faster on public research (196.73 vs 116.86 MB/s). The earlier process
@@ -580,6 +615,8 @@ Current ranking after `EXP-0017`:
   would be needed before reviving that claim.
 - A parser using actual split-stream code costs over a bounded horizon may
   improve on both longest-match lazy parsing and the rejected raw-token proxy.
+  EXP-0018 confirms this; open questions are model iteration, alternative
+  distances, and how much computation can be shared or avoided.
 - Distance modeling may need joint length/distance classes or recency ranks;
   plain modulo deltas between consecutive distances won no tested block.
 - Literal context may still be useful only if its coding tables are shared or
@@ -606,3 +643,7 @@ difference needs an in-process benchmark before it is considered meaningful.
 These are valid measurements for the frozen development corpus, not evidence of
 general performance. The later Silesia audit shows EXP-0010 dominated by
 zstd-3, Brotli-6, and xz-1 and supersedes any broad Pareto interpretation.
+On this same dev harness, EXP-0018 adds a maximum-ratio internal point at
+2,298,212 bytes and 6.25 MB/s encode: it is 2.50% larger but about 7% faster
+than the cached xz-6 measurement, so neither point dominates the other. This
+does not override the Silesia conclusion; no held-out data informed EXP-0018.
