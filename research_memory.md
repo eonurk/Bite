@@ -21,6 +21,11 @@
   encode throughput 18.99%. Decoder format, decode speed, and memory are
   unchanged. It is useful as a higher-compression research baseline but does
   not create an external Pareto point.
+- `EXP-0002` v2 blocked modes are retained as the balanced architecture. The
+  lazy variant totals 4,425,821 bytes (3.942 bits/byte), 39.57 MB/s encode,
+  80.07 MB/s decode, and 5.51 MB encoder peak RSS. Relative to v1 lazy this is
+  4.503% smaller, 24.273% faster to encode, 3.549% faster to decode, and 44.828%
+  lower encoder RSS. The v1 modes remain useful where cross-block matches matter.
 
 ## What consistently fails
 
@@ -37,6 +42,9 @@
 - Uniform random expands to 9.000 bits/byte; the fixed one-control-bit cost is
   visible exactly. Scientific doubles and the raw RGB gradient also remain
   near 9 bits/byte, while xz-6 exploits byte-plane/stride structure in both.
+- In v2, all 2,504,057 bytes from random, scientific, and RGB categories select
+  raw blocks. They shrink by about 11% relative to v1, leaving only file and
+  block framing overhead rather than token-control expansion.
 - Generated pseudo-executable data is 4.340 bits/byte in Bite versus 4.003 in
   LZ4, 1.966 in zstd-3, and 0.392 in xz-6. A 64 KiB window and fixed match
   representation miss strong long/structured repetition.
@@ -46,22 +54,25 @@
 
 ## Architecture weaknesses
 
-1. There is no raw-block fallback or entropy coder. Incompressible inputs pay
-   one control bit per literal plus a 16-byte header; random data therefore
-   expands by about 12.5%. Low-order literal bias is left entirely unused.
+1. V1 has no raw-block fallback and neither format has an entropy coder. V2
+   fixes incompressible expansion, but low-order literal bias remains entirely
+   unused in compressed blocks.
 2. Greedy parsing chooses the locally longest match and every match costs three
    bytes regardless of distance/length. It cannot trade a literal or short
    match for a materially better next match. Bounded single-hash chains also
    limit match choice.
-3. Compression is whole-file and stores the input plus a four-byte predecessor
-   per byte, has a 2 GiB input limit, and lacks independent blocks. Encoder RSS
-   is 9.99 MB on an 8.98 MB per-file corpus versus 3.95 MB for LZ4. The current
-   process-per-file harness also conflates startup latency with steady-state
-   throughput on tiny files.
+3. V1 stores a four-byte predecessor per input byte and has a 2 GiB limit. V2
+   bounds match-state allocation to 64 KiB and cuts measured encoder RSS by
+   44.8%, but file I/O and final output are still whole-file buffers rather than
+   streaming. The process-per-file harness also conflates startup latency with
+   steady-state throughput on tiny files.
+4. V2 independent blocks lose cross-boundary history. Size regresses 7.106% on
+   Canterbury, 7.220% on JSON, 9.101% on source, and 9.164% on repetitive text
+   relative to v1 lazy, despite improving total heterogeneous-corpus size.
 
 ## Promising unexplored directions
 
-Ranked by expected information gain after `BASE-0001`:
+Completed initial ranking:
 
 1. `EXP-0001` — one-token lazy parsing: emit a literal when the next-position
    match is at least two bytes longer than the current match. This isolates
@@ -79,6 +90,20 @@ Ranked by expected information gain after `BASE-0001`:
    sampled estimated cost per block. This targets scientific and raw image data
    while remaining data-driven and general-purpose.
 
+Current ranking after `EXP-0002`:
+
+1. `EXP-0003` — block-static literal entropy coding with explicit table cost
+   and raw fallback. The strongest remaining evidence is the large Canterbury
+   and structured-text gap even when matches are plentiful.
+2. `EXP-0004` — variable distance/length coding, especially cheap nearby
+   matches, to address fixed three-byte token cost.
+3. Linked-history v2 blocks — preserve independent block decisions and raw mode
+   while allowing matches into the immediately preceding 64 KiB history.
+4. Gated lazy parsing — avoid the `EXP-0001` extra search on long current matches
+   or low-match-density data.
+5. `EXP-0005` — sampled reversible byte-plane/stride transforms for scientific
+   and raw image blocks.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -89,6 +114,13 @@ Ranked by expected information gain after `BASE-0001`:
   alternative. `EXP-0001` throughput fell 18.99% overall, suggesting a future
   lazy policy should cheaply gate lookahead by current match length or local
   match density.
+- Block reset interacts with both speed and size. Short chains stay cache-local,
+  making v2 lazy 24.3% faster than v1 lazy, but discarded history costs 4–9%
+  on compressible categories. This makes linked-history blocks promising if
+  match-state memory can remain bounded.
+- Raw fallback was selected for 42 of 152 blocks (2,504,057 decoded bytes); 110
+  LZ blocks covered the remaining 6,478,825 bytes. Selection cleanly separated
+  the generated random/scientific/RGB categories without type-specific logic.
 
 ## Known benchmark artifacts
 
@@ -108,14 +140,14 @@ Ranked by expected information gain after `BASE-0001`:
 
 ## Open hypotheses
 
-- Raw block fallback can turn the current 12.5% worst-case expansion into small
-  bounded framing overhead.
 - Literal entropy coding should close more of the Canterbury gap than deeper
   match search alone.
 - Byte-plane structure explains the unusually large xz advantage on generated
   floating-point and RGB data.
 - Gating lazy lookahead to shorter current matches may retain most of its size
   gain while recovering enough encoder speed to approach a useful frontier.
+- A one-block linked history may recover most v2 compressible-data regression
+  without returning to v1's per-input predecessor allocation.
 
 ## Initial external Pareto frontier (2026-08-16)
 
