@@ -24,10 +24,13 @@ static double median(double *values, size_t count) {
 static Buffer benchmark_compress(const char *mode, const Buffer *input) {
     if (strcmp(mode, "clblinksdf") == 0)
         return compress_linked_blocked(input->data, input->size, MAX_MATCH,
-                                       1, 1, 1, 1);
+                                       1, 1, 1, 1, 0);
+    if (strcmp(mode, "clblinksopt") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 1);
     if (strcmp(mode, "clblinksd") == 0)
         return compress_linked_blocked(input->data, input->size, MAX_MATCH,
-                                       1, 1, 1, 0);
+                                       1, 1, 1, 0, 0);
     fail("unsupported in-process compression mode");
     return (Buffer){0};
 }

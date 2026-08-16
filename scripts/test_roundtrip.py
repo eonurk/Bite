@@ -56,6 +56,7 @@ with tempfile.TemporaryDirectory() as directory:
         modes += ("clblinksg",)
         modes += ("clblinksd",)
         modes += ("clblinksdf",)
+        modes += ("clblinksopt",)
         tasks = [(mode, index, source, hashes[index], temp)
                  for mode in modes for index, source in enumerate(sources)]
         list(executor.map(roundtrip, tasks))

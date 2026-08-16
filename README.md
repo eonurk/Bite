@@ -49,6 +49,8 @@ adaptively selected stride from 1–8, followed by independent LZ and field-spli
 entropy coding. The stride byte and complete transformed payload are counted.
 Mode `clblinksdf` uses the same representation with a start/middle/end sample
 and conservative concentration gate to avoid low-confidence transformed parses.
+Mode `clblinksopt` exact-selects a second mode-6 token stream from a bounded
+dynamic parser using the parent block's split-Huffman field costs.
 Decoder `dwork` builds the 8-bit Huffman lookup only when estimated tree-edge
 work exceeds one residual edge per symbol plus worst-case table construction.
 
