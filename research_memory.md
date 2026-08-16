@@ -39,6 +39,10 @@
   The lazy mode is Bite's current minimum-size point: 3,920,565 bytes (3.492
   bits/byte), 25.60 MB/s encode, 56.21 MB/s decode, and 6.90 MB encoder peak
   RSS. It is 0.523% smaller than gzip-1, but zstd-1 remains smaller and faster.
+- `EXP-0007` field-split entropy mode `clblinks` is Bite's new minimum-size
+  point: 3,615,800 bytes (3.220 bits/byte), 21.71 MB/s encode, 54.27 MB/s decode,
+  and 6.36 MB encoder RSS. Five exact-counted order-0 alphabets reduce linked
+  joint-Huffman size 7.773% with no per-file size regression.
 
 ## What consistently fails
 
@@ -77,8 +81,9 @@
 
 1. V1 has no raw-block fallback. V2 fixes incompressible expansion and
    `EXP-0003` adds order-0 entropy coding, but the model mixes control, match,
-   distance, length, and literal bytes in one alphabet. It cannot exploit
-   context-dependent literal probabilities or token-field-specific statistics.
+   distance, length, and literal bytes in one alphabet. `EXP-0007` fixes field
+   mixing in mode 6, but its models remain order-0 and cannot exploit byte
+   context, distance recency, or length/distance correlation.
 2. Greedy parsing chooses the locally longest match and every match costs three
    bytes regardless of distance/length. It cannot trade a literal or short
    match for a materially better next match. Bounded single-hash chains also
@@ -99,6 +104,9 @@
 6. Linked Huffman improves size but compounds costs: versus independent Huffman
    it is 22.589% slower to encode, 5.227% slower to decode, and uses 18.927%
    more encoder RSS. It does not create an external frontier point.
+7. Split entropy serializes and decodes five trees per selected block. It costs
+   19.257% encode and 7.651% decode throughput versus joint linked Huffman; the
+   bit-at-a-time tree walker magnifies this overhead.
 
 ## Promising unexplored directions
 
@@ -167,7 +175,7 @@ Ranking after `EXP-0005` (first item completed by `EXP-0006`):
 4. Reversible stride/byte-plane transforms for scientific and raw image blocks.
 5. Faster Huffman decoding through canonical/table lookup.
 
-Current ranking after `EXP-0006`:
+Ranking after `EXP-0006` (first item completed by `EXP-0007`):
 
 1. Split token controls, literals, distances, and lengths into separate entropy
    alphabets or contexts while preserving exact block selection.
@@ -176,6 +184,17 @@ Current ranking after `EXP-0006`:
 4. Faster canonical/table Huffman decoding for the retained entropy modes.
 5. Persistent circular match chains across blocks to avoid linked-history
    re-indexing while preserving bounded memory.
+
+Current ranking after `EXP-0007`:
+
+1. Gated lazy parsing to avoid next-match searches when the current match is
+   already long or local match density is low.
+2. Reversible stride/byte-plane transforms for scientific and raw image blocks.
+3. Faster canonical/table Huffman decoding, now more valuable because mode 6
+   may decode five streams per block.
+4. Context-split literal models (for example previous-byte classes) within the
+   literal stream, with exact table-cost selection.
+5. Persistent circular match chains across linked blocks.
 
 ## Interactions between components
 
@@ -216,6 +235,13 @@ Current ranking after `EXP-0006`:
   linked gain plus 9.606% Huffman gain. The combined mode still improves
   Canterbury 6.459%, JSON 5.089%, source 7.436%, text 14.834%, and XML 6.025%
   versus independent Huffman. Canterbury `ptt5` regresses only four bytes.
+- Field separation provides a larger, broad gain: versus linked joint Huffman
+  it improves Canterbury 17.133%, pseudo-executable 29.475%, JSON 15.461%,
+  mixed 5.512%, scientific 3.078%, source 14.686%, text 36.281%, and XML
+  28.682%. Random/RGB/small blocks safely retain earlier representations.
+- Scientific data is notable: split entropy makes an LZ-derived representation
+  24,625 bytes smaller than raw framing even though plain and joint-Huffman LZ
+  previously selected raw. Token fields exposed structure hidden when mixed.
 
 ## Known benchmark artifacts
 
@@ -250,11 +276,8 @@ Current ranking after `EXP-0006`:
   floating-point and RGB data.
 - Gating lazy lookahead to shorter current matches may retain most of its size
   gain while recovering enough encoder speed to approach a useful frontier.
-- Separating literal and match-field entropy streams may outperform the current
-  single order-0 token-byte alphabet without a more complex probability model.
-- Separate entropy alphabets may capture field-specific distributions hidden by
-  the current single token-byte Huffman model, especially literal bias versus
-  distance/length bytes.
+- Context-dependent literal alphabets may further improve structured text now
+  that literals are isolated from control and match fields.
 
 ## Initial external Pareto frontier (2026-08-16)
 
