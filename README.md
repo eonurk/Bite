@@ -47,6 +47,8 @@ to current matches shorter than 32 bytes.
 Mode `clblinksd` additionally considers mode 7: a reversible byte-delta at one
 adaptively selected stride from 1–8, followed by independent LZ and field-split
 entropy coding. The stride byte and complete transformed payload are counted.
+Mode `clblinksdf` uses the same representation with a start/middle/end sample
+and conservative concentration gate to avoid low-confidence transformed parses.
 
 ## Staged experiments
 

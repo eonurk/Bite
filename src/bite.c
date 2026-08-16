@@ -13,6 +13,7 @@
 #define HEADER_SIZE 16u
 #define BLOCK_SIZE 65536u
 #define BLOCK_HEADER_SIZE 9u
+#define DELTA_SAMPLE_SEGMENT 1365u
 
 typedef struct {
     uint8_t *data;
@@ -625,6 +626,42 @@ static size_t choose_delta_stride(const uint8_t *input, size_t input_size) {
     return best_stride;
 }
 
+static size_t choose_delta_stride_sampled(const uint8_t *input, size_t input_size) {
+    if (input_size < 32) return 0;
+    uint32_t frequencies[9][256] = {{0}};
+    size_t segment_size = input_size <= 3u * DELTA_SAMPLE_SEGMENT
+        ? input_size : DELTA_SAMPLE_SEGMENT;
+    size_t starts[3] = {0, 0, 0};
+    size_t segment_count = 1;
+    if (segment_size < input_size) {
+        starts[1] = (input_size - segment_size) / 2;
+        starts[2] = input_size - segment_size;
+        segment_count = 3;
+    }
+    for (size_t segment = 0; segment < segment_count; ++segment) {
+        size_t end = starts[segment] + segment_size;
+        for (size_t i = starts[segment]; i < end; ++i) {
+            ++frequencies[0][input[i]];
+            for (size_t stride = 1; stride <= 8; ++stride) {
+                uint8_t value = i < stride ? input[i]
+                    : (uint8_t)(input[i] - input[i - stride]);
+                ++frequencies[stride][value];
+            }
+        }
+    }
+    uint64_t scores[9] = {0};
+    for (size_t stride = 0; stride <= 8; ++stride)
+        for (unsigned value = 0; value < 256; ++value)
+            scores[stride] += (uint64_t)frequencies[stride][value] *
+                              frequencies[stride][value];
+    size_t best_stride = 0;
+    for (size_t stride = 1; stride <= 8; ++stride)
+        if (scores[stride] > scores[best_stride]) best_stride = stride;
+    if (best_stride && scores[best_stride] < scores[0] + scores[0] / 5u)
+        best_stride = 0;
+    return best_stride;
+}
+
 static void delta_transform(const uint8_t *input, uint8_t *output,
                             size_t input_size, size_t stride) {
     for (size_t i = 0; i < input_size; ++i)
@@ -678,7 +715,7 @@ static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy
 
 static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
                                       size_t lazy_limit, int entropy, int split_entropy,
-                                      int delta_stride) {
+                                      int delta_stride, int sampled_delta) {
     Buffer output = {0};
     reserve(&output, HEADER_SIZE + input_size / 2 + 64);
     append_byte(&output, 'B'); append_byte(&output, 'I');
@@ -704,7 +741,9 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
         Buffer transformed_split = {0};
         size_t transformed_stride = 0;
         if (delta_stride) {
-            transformed_stride = choose_delta_stride(input + pos, decoded_size);
+            transformed_stride = sampled_delta
+                ? choose_delta_stride_sampled(input + pos, decoded_size)
+                : choose_delta_stride(input + pos, decoded_size);
             if (transformed_stride) {
                 uint8_t *transformed = (uint8_t *)malloc(decoded_size);
                 if (!transformed) fail("out of memory");
@@ -869,7 +908,7 @@ static void write_file(const char *path, const Buffer *buffer) {
 
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|d|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|d|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -879,26 +918,32 @@ int main(int argc, char **argv) {
     int is_lazy = strcmp(argv[1], "cl") == 0 || strcmp(argv[1], "clb") == 0 ||
                   strcmp(argv[1], "clbh") == 0 || strcmp(argv[1], "clblink") == 0 ||
                   strcmp(argv[1], "clblinkh") == 0 || strcmp(argv[1], "clblinks") == 0 ||
-                  strcmp(argv[1], "clblinksg") == 0 || strcmp(argv[1], "clblinksd") == 0;
+                  strcmp(argv[1], "clblinksg") == 0 || strcmp(argv[1], "clblinksd") == 0 ||
+                  strcmp(argv[1], "clblinksdf") == 0;
     int is_linked = strcmp(argv[1], "cblink") == 0 || strcmp(argv[1], "clblink") == 0 ||
                     strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0;
     is_linked = is_linked || strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksg") == 0;
     is_linked = is_linked || strcmp(argv[1], "clblinksd") == 0;
+    is_linked = is_linked || strcmp(argv[1], "clblinksdf") == 0;
     int is_blocked = strcmp(argv[1], "cb") == 0 || strcmp(argv[1], "clb") == 0 ||
                      strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 || is_linked;
     int is_entropy = strcmp(argv[1], "cbh") == 0 || strcmp(argv[1], "clbh") == 0 ||
                      strcmp(argv[1], "cblinkh") == 0 || strcmp(argv[1], "clblinkh") == 0 ||
                      strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
-                     strcmp(argv[1], "clblinksg") == 0 || strcmp(argv[1], "clblinksd") == 0;
+                     strcmp(argv[1], "clblinksg") == 0 || strcmp(argv[1], "clblinksd") == 0 ||
+                     strcmp(argv[1], "clblinksdf") == 0;
     int is_split_entropy = strcmp(argv[1], "cblinks") == 0 || strcmp(argv[1], "clblinks") == 0 ||
                            strcmp(argv[1], "clblinksg") == 0;
     is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksd") == 0;
+    is_split_entropy = is_split_entropy || strcmp(argv[1], "clblinksdf") == 0;
     int is_gated_lazy = strcmp(argv[1], "clblinksg") == 0;
-    int is_delta_stride = strcmp(argv[1], "clblinksd") == 0;
+    int is_delta_stride = strcmp(argv[1], "clblinksd") == 0 ||
+                          strcmp(argv[1], "clblinksdf") == 0;
+    int is_sampled_delta = strcmp(argv[1], "clblinksdf") == 0;
     int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|d|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite c|cl|cb|clb|cbh|clbh|cblink|clblink|cblinkh|clblinkh|cblinks|clblinks|clblinksg|clblinksd|clblinksdf|d|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
@@ -909,7 +954,8 @@ int main(int argc, char **argv) {
     else if (is_linked)
         output = compress_linked_blocked(input.data, input.size,
                                          is_gated_lazy ? 32 : (is_lazy ? MAX_MATCH : 0),
-                                         is_entropy, is_split_entropy, is_delta_stride);
+                                         is_entropy, is_split_entropy, is_delta_stride,
+                                         is_sampled_delta);
     else if (is_blocked)
         output = compress_blocked(input.data, input.size, is_lazy, is_entropy);
     else
