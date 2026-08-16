@@ -34,6 +34,9 @@ static Buffer benchmark_compress(const char *mode, const Buffer *input) {
     if (strcmp(mode, "clblinksopt2d") == 0)
         return compress_linked_blocked(input->data, input->size, MAX_MATCH,
                                        1, 1, 1, 1, 3);
+    if (strcmp(mode, "clblinksopt2df") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 4);
     if (strcmp(mode, "clblinksd") == 0)
         return compress_linked_blocked(input->data, input->size, MAX_MATCH,
                                        1, 1, 1, 0, 0);
