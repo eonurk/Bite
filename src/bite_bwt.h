@@ -1,9 +1,130 @@
 /* Experimental cyclic BWT, move-to-front and zero-run coding.
  * Included after the arithmetic primitives in bite.c. No external codec.
- * Prefix doubling uses counting sorts: O(n log n) time, O(n) memory,
- * including periodic and all-equal inputs (no quadratic comparator).
+ * Aperiodic blocks sort rotations as suffixes of the doubled block with SA-IS
+ * (EXP-0083): linear time. Exact repetitions of a shorter string have equal
+ * rotations, so they keep prefix doubling, whose tie order defines the stream.
  */
-static Buffer bwt_transform(const uint8_t *input, size_t size, uint32_t *primary) {
+
+/* SA-IS (Nong, Zhang and Chan) over s[0..n), where s[n-1] == 0 is a unique
+ * smallest sentinel and every value is below k. */
+static void sais_buckets(const int32_t *s, int32_t n, int32_t k, int32_t *bucket, int end) {
+    memset(bucket, 0, (size_t)k * sizeof(*bucket));
+    for (int32_t i = 0; i < n; ++i) ++bucket[s[i]];
+    int32_t sum = 0;
+    for (int32_t c = 0; c < k; ++c) {
+        sum += bucket[c];
+        bucket[c] = end ? sum : sum - bucket[c];
+    }
+}
+
+static void sais_induce(const int32_t *s, const uint8_t *stype, int32_t *sa, int32_t n,
+                        int32_t k, int32_t *bucket) {
+    sais_buckets(s, n, k, bucket, 0);
+    for (int32_t i = 0; i < n; ++i) {
+        int32_t j = sa[i] - 1;
+        if (sa[i] > 0 && !stype[j]) sa[bucket[s[j]]++] = j;
+    }
+    sais_buckets(s, n, k, bucket, 1);
+    for (int32_t i = n; i-- > 0;) {
+        int32_t j = sa[i] - 1;
+        if (sa[i] > 0 && stype[j]) sa[--bucket[s[j]]] = j;
+    }
+}
+
+static void sais_core(const int32_t *s, int32_t *sa, int32_t n, int32_t k) {
+    uint8_t *stype = malloc((size_t)n);
+    int32_t *bucket = malloc((size_t)k * sizeof(*bucket));
+    if (!stype || !bucket) fail("out of memory");
+    stype[n - 1] = 1;
+    for (int32_t i = n - 1; i-- > 0;)
+        stype[i] = s[i] < s[i + 1] || (s[i] == s[i + 1] && stype[i + 1]);
+#define SAIS_LMS(i) ((i) > 0 && stype[i] && !stype[(i) - 1])
+    sais_buckets(s, n, k, bucket, 1);
+    for (int32_t i = 0; i < n; ++i) sa[i] = -1;
+    for (int32_t i = 1; i < n; ++i)
+        if (SAIS_LMS(i)) sa[--bucket[s[i]]] = i;
+    sais_induce(s, stype, sa, n, k, bucket);
+
+    /* Name the sorted LMS substrings; positions are at least two apart. */
+    int32_t lms_count = 0;
+    for (int32_t i = 0; i < n; ++i)
+        if (SAIS_LMS(sa[i])) sa[lms_count++] = sa[i];
+    for (int32_t i = lms_count; i < n; ++i) sa[i] = -1;
+    int32_t names = 0, previous = -1;
+    for (int32_t i = 0; i < lms_count; ++i) {
+        int32_t position = sa[i], differs = previous < 0;
+        for (int32_t d = 0; !differs; ++d) {
+            if (s[position + d] != s[previous + d] ||
+                stype[position + d] != stype[previous + d])
+                differs = 1;
+            else if (d > 0 && (SAIS_LMS(position + d) || SAIS_LMS(previous + d)))
+                break;
+        }
+        if (differs) { ++names; previous = position; }
+        sa[lms_count + position / 2] = names - 1;
+    }
+    for (int32_t i = n, j = n; i-- > lms_count;)
+        if (sa[i] >= 0) sa[--j] = sa[i];
+
+    int32_t *reduced = sa + n - lms_count, *reduced_sa = sa;
+    if (names < lms_count) {
+        sais_core(reduced, reduced_sa, lms_count, names);
+    } else {
+        for (int32_t i = 0; i < lms_count; ++i) reduced_sa[reduced[i]] = i;
+    }
+    for (int32_t i = 1, j = 0; i < n; ++i)
+        if (SAIS_LMS(i)) reduced[j++] = i;
+    for (int32_t i = 0; i < lms_count; ++i) reduced_sa[i] = reduced[reduced_sa[i]];
+    for (int32_t i = lms_count; i < n; ++i) sa[i] = -1;
+    sais_buckets(s, n, k, bucket, 1);
+    for (int32_t i = lms_count; i-- > 0;) {
+        int32_t j = sa[i];
+        sa[i] = -1;
+        sa[--bucket[s[j]]] = j;
+    }
+    sais_induce(s, stype, sa, n, k, bucket);
+#undef SAIS_LMS
+    free(bucket); free(stype);
+}
+
+/* Smallest period dividing size, or size when the block is aperiodic. */
+static size_t bwt_period(const uint8_t *input, size_t size) {
+    uint32_t *border = malloc(size * sizeof(*border));
+    if (!border) fail("out of memory");
+    border[0] = 0;
+    for (size_t i = 1; i < size; ++i) {
+        uint32_t k = border[i - 1u];
+        while (k && input[i] != input[k]) k = border[k - 1u];
+        border[i] = k + (input[i] == input[k]);
+    }
+    size_t period = size - border[size - 1u];
+    free(border);
+    return size % period ? size : period;
+}
+
+static Buffer bwt_transform_sais(const uint8_t *input, size_t size, uint32_t *primary) {
+    int32_t n = (int32_t)size, m = 2 * n + 1;
+    int32_t *text = malloc((size_t)m * sizeof(*text));
+    int32_t *sa = malloc((size_t)m * sizeof(*sa));
+    if (!text || !sa) fail("out of memory");
+    for (int32_t i = 0; i < n; ++i) text[i] = text[i + n] = input[i] + 1;
+    text[2 * n] = 0;
+    sais_core(text, sa, m, 257);
+    free(text);
+    Buffer last = {0};
+    reserve(&last, size);
+    for (int32_t i = 1, row = 0; i < m; ++i) {
+        int32_t start = sa[i];
+        if (start >= n) continue;
+        if (!start) *primary = (uint32_t)row;
+        last.data[row++] = input[start ? start - 1 : n - 1];
+    }
+    last.size = size;
+    free(sa);
+    return last;
+}
+
+static Buffer bwt_transform_doubling(const uint8_t *input, size_t size, uint32_t *primary) {
     Buffer last = {0};
     if (!size || size > WHOLE_BLOCK_SIZE) fail("invalid BWT block size");
     uint32_t n = (uint32_t)size;
@@ -57,6 +178,13 @@ static Buffer bwt_transform(const uint8_t *input, size_t size, uint32_t *primary
     last.size = size;
     free(count); free(work); free(next); free(rank); free(order);
     return last;
+}
+
+static Buffer bwt_transform(const uint8_t *input, size_t size, uint32_t *primary) {
+    if (!size || size > WHOLE_BLOCK_SIZE) fail("invalid BWT block size");
+    return bwt_period(input, size) == size
+        ? bwt_transform_sais(input, size, primary)
+        : bwt_transform_doubling(input, size, primary);
 }
 
 static void bwt_append_run(Buffer *tokens, size_t run) {
