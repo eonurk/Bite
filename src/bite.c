@@ -4491,6 +4491,8 @@ static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy
     return output;
 }
 
+#include "bite_fastdec.h"
+
 static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
                                       size_t lazy_limit, int entropy, int split_entropy,
                                       int delta_stride, int sampled_delta,
@@ -4505,6 +4507,8 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
     append_byte(&output, 2); append_byte(&output, 0);
     append_byte(&output, 0); append_byte(&output, 0);
     append_u64le(&output, (uint64_t)input_size);
+
+    if (entropy_parse == 37) return compress_fast_decode_blocked(input, input_size, output);
 
     if (entropy_parse == 32 && input_size <= WHOLE_BLOCK_SIZE) {
         Buffer small_alphabet = small_alphabet_order4_encode(input, input_size);
@@ -4813,7 +4817,8 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size, int fas
         if ((mode > 2 && mode != 4 && mode != 5 && mode != 6 && mode != 7 &&
              mode != 8 && mode != 9 && mode != 10 && mode != 11 && mode != 12 &&
              mode != 13 && mode != 14 && mode != 15 && mode != 16 && mode != 17 &&
-             mode != 18 && mode != 20 && mode != 22 && mode != 23 && mode != 24 && mode != 25) ||
+             mode != 18 && mode != 20 && mode != 22 && mode != 23 && mode != 24 && mode != 25 &&
+             mode != 27) ||
             block_decoded == 0 || block_decoded > WHOLE_BLOCK_SIZE ||
             block_decoded > decoded_size - output.size || block_stored > input_size - ip)
             fail("invalid block");
@@ -4891,6 +4896,8 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size, int fas
         } else if (mode == 24) {
             wide_rep_decode(&output, input + ip, block_stored,
                             block_decoded, fast_huffman, 3);
+        } else if (mode == 27) {
+            fd_decode_block(&output, input + ip, block_stored, block_decoded);
         } else if (mode == 25) {
             Buffer decoded = bwt_decode(input + ip, block_stored, block_decoded);
             append_bytes(&output, decoded.data, decoded.size);
@@ -4939,19 +4946,20 @@ static void write_file(const char *path, const Buffer *buffer) {
 #ifndef BITE_NO_MAIN
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite cmax|cfast|cbwt|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite cmax|cfast|cbwt|cdec|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
     /* Short public presets keep historical experiment names byte-compatible. */
     if (strcmp(argv[1], "cmax") == 0 || strcmp(argv[1], "cbwt") == 0 ||
-        strcmp(argv[1], "cfast") == 0) {
+        strcmp(argv[1], "cfast") == 0 || strcmp(argv[1], "cdec") == 0) {
         Buffer input = read_file(argv[2]);
         Buffer output = strcmp(argv[1], "cbwt") == 0
             ? compress_bwt_blocked(input.data, input.size)
             : compress_linked_blocked(input.data, input.size, MAX_MATCH,
                                        1, 1, 1, 1,
-                                       strcmp(argv[1], "cmax") == 0 ? 34 : 32);
+                                       strcmp(argv[1], "cmax") == 0 ? 34 :
+                                       (strcmp(argv[1], "cdec") == 0 ? 37 : 32));
         write_file(argv[3], &output);
         free(input.data); free(output.data);
         return 0;
@@ -5194,7 +5202,7 @@ int main(int argc, char **argv) {
     int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dwork") == 0 ||
                     strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite cmax|cfast|cbwt|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite cmax|cfast|cbwt|cdec|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }

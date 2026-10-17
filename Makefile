@@ -9,11 +9,11 @@ CODECS ?=
 
 all: bin/bite bin/bite-bench
 
-bin/bite: src/bite.c src/bite_bwt.h
+bin/bite: src/bite.c src/bite_bwt.h src/bite_fastdec.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) $< -o $@
 
-bin/bite-bench: src/bite_bench.c src/bite.c src/bite_bwt.h
+bin/bite-bench: src/bite_bench.c src/bite.c src/bite_bwt.h src/bite_fastdec.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -Wno-unused-function src/bite_bench.c -o $@
 
