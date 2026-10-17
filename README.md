@@ -12,28 +12,30 @@ against its parent, and only exact, measured improvements are kept.
 ## Results
 
 Measured on the fixed public research corpus (16 Calgary and Canterbury Large
-Corpus files, 13,787,888 bytes):
+Corpus files, 13,787,888 bytes). Every row comes from one run on one idle M1
+Mac: the same process harness, 3 repeats, all codecs single-threaded
+([results](results/m1-2-timing-research/)).
 
 | Codec | Bytes | Bits/byte | Encode | Decode |
 |---|---:|---:|---:|---:|
-| Bite `cmax` (EXP-0075, not yet validated) | 3,247,227 | 1.884 | 239.4 s* | 0.86 s* |
-| Brotli 11 | 3,283,714 | 1.905 | 23.2 s | 0.14 s |
-| Bite EXP-0074 (last validated size maximum) | 3,347,119 | 1.942 | 265.8 s* | 0.75 s* |
-| Bite `cfast` (EXP-0072) | 3,359,272 | 1.949 | 37.6 s | 0.59 s |
-| xz -9e | 3,360,808 | 1.950 | 5.6 s | 0.23 s |
-| zstd -19 | 3,384,473 | 1.964 | 4.2 s | 0.11 s |
+| Bite `cmax` (EXP-0075, not yet validated) | 3,247,227 | 1.884 | 180.2 s | 0.79 s |
+| Brotli 11 | 3,283,714 | 1.905 | 19.9 s | 0.11 s |
+| Bite EXP-0074 (last validated size maximum) | 3,347,119 | 1.942 | 174.4 s | 0.71 s |
+| Bite `cfast` (EXP-0072) | 3,359,272 | 1.949 | 36.9 s | 0.60 s |
+| xz -9e | 3,360,808 | 1.950 | 4.5 s | 0.21 s |
+| **Bite `cbwt` (EXP-0075)** | **3,373,378** | **1.957** | **3.2 s** | 0.97 s |
+| zstd -19 | 3,384,473 | 1.964 | 3.9 s | 0.09 s |
 
-\* Timed by the in-process runner; other rows use the process harness.
-
-Bite wins on size and pays for it in speed. `cmax` encodes about 10 times
-slower than Brotli 11 and 57 times slower than zstd -19, and Bite decodes 3–8
-times slower than the reference codecs. These results are specific to this
+`cbwt` is both smaller than zstd -19 and faster to encode, so it sits on the
+encode-speed Pareto frontier. `cmax` is the smallest but encodes 9 times slower
+than Brotli 11 and 46 times slower than zstd -19. Every Bite preset decodes
+3–11 times slower than the reference codecs. These results are specific to this
 corpus and are not a claim that Bite is generally better than xz, zstd or
 Brotli.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/pareto-dark.png">
-  <img alt="Bits per byte against encode and decode speed: the reference codecs form the Pareto frontier; Bite reaches the smallest sizes but encodes and decodes more slowly" src="docs/pareto-light.png">
+  <img alt="Bits per byte against encode and decode speed on one M1 Mac: Bite cbwt is on the encode frontier between Brotli 6 and xz -9e, cmax is the smallest point, and the reference codecs decode faster" src="docs/pareto-light.png">
 </picture>
 
 ## Quick start
@@ -46,7 +48,8 @@ make test
 
 ```sh
 bin/bite cmax INPUT OUTPUT.bite   # smallest output, slowest
-bin/bite cfast INPUT OUTPUT.bite  # about 3.5% larger, much faster
+bin/bite cfast INPUT OUTPUT.bite  # about 3.5% larger, 5 times faster
+bin/bite cbwt INPUT OUTPUT.bite   # smaller than zstd -19 at similar speed
 bin/bite d OUTPUT.bite RESTORED   # decodes every mode
 ```
 

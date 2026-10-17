@@ -1,11 +1,8 @@
-#!/usr/bin/env python3
 """Plot size against encode and decode speed on the public research corpus.
 
-Points are measured research-suite aggregates from results/*/summary.csv.
-Process-harness timings are directly comparable with the reference codecs;
-EXP-0074 and EXP-0075 were timed only by the in-process runner, so they are
-drawn hollow and kept off the Pareto frontier.
-Writes docs/pareto-light.png and docs/pareto-dark.png.
+Every point comes from one process-harness run on one idle M1 Mac
+(results/m1-2-timing-research): same machine, same tool versions, 3 repeats,
+single-threaded. Writes docs/pareto-light.png and docs/pareto-dark.png.
 """
 
 import csv
@@ -19,35 +16,21 @@ from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter  # noqa: 
 
 ROOT = Path(__file__).resolve().parents[1]
 RESEARCH_BYTES = 13_787_888
+RUN = "m1-2-timing-research"
 
-# (results directory, codec, label, family, process-timed)
-POINTS = (
-    ("exp-0030-compact-models-research-external", "zstd-3", "zstd -3", "ref", True),
-    ("exp-0030-compact-models-research-external", "brotli-6", "Brotli 6", "ref", True),
-    ("exp-0067-strong-references-research", "zstd-19", "zstd -19", "ref", True),
-    ("exp-0067-strong-references-research", "xz-9e", "xz -9e", "ref", True),
-    ("exp-0067-strong-references-research", "brotli-11", "Brotli 11", "ref", True),
-    ("exp-0028-research", "bite-link-split-optimal-distances-bucketed", "EXP-0028", "bite", True),
-    ("exp-0030-compact-models-research-external", "bite-link-split-optimal-compact-models",
-     "EXP-0030", "bite", True),
-    ("exp-0067-strong-references-research",
-     "bite-link-split-optimal-wide-arithmetic-static-parse2-rep-distances", "EXP-0058", "bite", True),
-    ("exp-0068-small-alphabet-order4-research",
-     "bite-link-split-optimal-wide-arithmetic-static-parse2-small-alphabet-order4",
-     "EXP-0068", "bite", True),
-    ("exp-0069-fast-pareto-research-screen",
-     "bite-link-split-optimal-wide-arithmetic-static-parse2-fast", "", "bite", True),
-    ("exp-0070-fast-cost48-research-screen",
-     "bite-link-split-optimal-wide-arithmetic-static-parse2-fast", "", "bite", True),
-    ("exp-0071-fast-cost32-research-screen",
-     "bite-link-split-optimal-wide-arithmetic-static-parse2-fast", "", "bite", True),
-    ("exp-0072-fast-cost16-research-screen",
-     "bite-link-split-optimal-wide-arithmetic-static-parse2-fast", "cfast (EXP-0072)", "bite", True),
-    ("exp-0074-context-mix3-tuned-research-inprocess",
-     "bite-link-split-optimal-wide-arithmetic-static-parse2-context-mix3",
-     "EXP-0074", "bite", False),
-    ("exp-0075-bwt-research-inprocess", "bite-max-bwt", "cmax (EXP-0075)", "bite", False),
-)
+# codec -> (label, family); codecs not listed are left out of the chart.
+CODECS = {
+    "bite-max-bwt": ("cmax", "bite"),
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-context-mix3": ("EXP-0074", "bite"),
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-fast": ("cfast", "bite"),
+    "bite-bwt": ("cbwt", "bite"),
+    "brotli-11": ("Brotli 11", "ref"),
+    "brotli-6": ("Brotli 6", "ref"),
+    "xz-9e": ("xz -9e", "ref"),
+    "zstd-19": ("zstd -19", "ref"),
+    "zstd-3": ("zstd -3", "ref"),
+    "gzip-9": ("gzip -9", "ref"),
+}
 
 THEMES = {
     "light": dict(surface="#fcfcfb", text="#0b0b0b", text2="#52514e", grid="#e6e5e0",
@@ -58,25 +41,27 @@ THEMES = {
 
 # Label offsets in points, tuned to avoid collisions: (encode, decode).
 OFFSETS = {
-    "EXP-0058": ((6, 4), (6, 4)), "EXP-0068": ((6, -10), (-50, -12)),
-    "EXP-0074": ((6, 2), (-48, 4)), "cmax (EXP-0075)": ((6, -4), (6, -4)),
-    "cfast (EXP-0072)": ((-12, 7), (6, -11)), "xz -9e": ((6, -10), (6, -10)),
-    "zstd -19": ((6, 2), (6, 2)),
+    "cmax": ((6, -4), (6, -4)), "EXP-0074": ((6, 2), (-22, 7)),
+    "cfast": ((6, 2), (6, -11)), "cbwt": ((7, -6), (-26, -14)),
+    "xz -9e": ((-46, -12), (6, -10)), "zstd -19": ((-20, 6), (6, 2)),
+    "zstd -3": ((6, 2), (-40, 4)), "gzip -9": ((6, 2), (6, -12)),
 }
 
 
 def load():
     rows = []
-    for directory, codec, label, family, process in POINTS:
-        with (ROOT / "results" / directory / "summary.csv").open() as handle:
-            row = next(r for r in csv.DictReader(handle) if r["codec"] == codec)
-        if int(row["original_size_bytes"]) != RESEARCH_BYTES:
-            raise SystemExit(f"{directory}/{codec} is not the research corpus aggregate")
-        size = int(row["compressed_size_bytes"])
-        rows.append(dict(label=label, family=family, process=process,
-                         bpb=8 * size / RESEARCH_BYTES,
-                         encode=RESEARCH_BYTES / 1e6 / float(row["encode_time_seconds"]),
-                         decode=RESEARCH_BYTES / 1e6 / float(row["decode_time_seconds"])))
+    with (ROOT / "results" / RUN / "summary.csv").open() as handle:
+        for row in csv.DictReader(handle):
+            if row["codec"] not in CODECS:
+                continue
+            if int(row["original_size_bytes"]) != RESEARCH_BYTES:
+                raise SystemExit(f"{row['codec']} is not the research corpus aggregate")
+            label, family = CODECS[row["codec"]]
+            size = int(row["compressed_size_bytes"])
+            rows.append(dict(label=label, family=family, process=True,
+                             bpb=8 * size / RESEARCH_BYTES,
+                             encode=RESEARCH_BYTES / 1e6 / float(row["encode_time_seconds"]),
+                             decode=RESEARCH_BYTES / 1e6 / float(row["decode_time_seconds"])))
     return rows
 
 
@@ -118,7 +103,7 @@ def main():
                     ax.annotate(r["label"], (r[key], r["bpb"]), xytext=offset,
                                 textcoords="offset points", fontsize=8, color=t["text2"])
             ax.set_xscale("log")
-            ax.xaxis.set_major_locator(LogLocator(subs=(1, 3)))
+            ax.xaxis.set_major_locator(LogLocator(subs=(1, 2, 5)))
             ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
             ax.xaxis.set_minor_formatter(NullFormatter())
             ax.set_title(title, loc="left", color=t["text"], fontsize=10.5)
@@ -133,8 +118,6 @@ def main():
         axes[0].set_ylabel("Research corpus bits per byte (lower is better)", color=t["text2"])
 
         axes[0].scatter([], [], s=48, color=t["bite"], edgecolor=t["surface"], label="Bite")
-        axes[0].scatter([], [], s=44, facecolors=t["surface"], edgecolors=t["bite"],
-                        linewidths=1.6, label="Bite, timed in-process only")
         axes[0].scatter([], [], s=48, color=t["ref"], edgecolor=t["surface"], label="Reference codec")
         axes[0].plot([], [], color=t["frontier"], lw=1.2, ls=(0, (4, 3)), label="Pareto frontier")
         fig.legend(loc="upper right", ncol=4, frameon=False, fontsize=8.5, labelcolor=t["text"],
