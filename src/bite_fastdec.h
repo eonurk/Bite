@@ -18,7 +18,7 @@
 #define FD_LIT_MAX_LOG 11u
 #define FD_SEQ_MAX_LOG 10u
 #define FD_MAX_LOG 12u
-#define FD_MAX_KEYS 1024u
+#define FD_MAX_KEYS 4096u
 #define FD_MAX_TABLES 64u
 #define FD_MAX_ORDER 6u
 #define FD_COPY_SLACK 32u
@@ -776,7 +776,6 @@ static int fd_encode_literals_context(const uint8_t *input, size_t start, size_t
     model.order = order;
     size_t history = start > order ? start - order : 0;
     uint8_t present[256] = {0};
-    present[0] = 1;
     for (size_t i = history; i < start + block_size; ++i) present[input[i]] = 1;
     unsigned alphabet = 0;
     for (unsigned b = 0; b < 256; ++b) model.rank[b] = present[b] ? (uint8_t)alphabet++ : 0;
@@ -842,7 +841,7 @@ static int fd_encode_literals_context(const uint8_t *input, size_t start, size_t
     Buffer section = {0};
     FdBitWriter header = {&section, 0, 0};
     fd_put(&header, order - 1u, 3);
-    for (unsigned b = 0; b < 256; ++b) fd_put(&header, b ? present[b] : 0u, 1);
+    for (unsigned b = 0; b < 256; ++b) fd_put(&header, present[b], 1);
     fd_put(&header, tables - 1u, 6);
     unsigned map_bits = fd_bits_for(tables);
     for (unsigned key = 0; key < keys; ++key) fd_put(&header, map[key], map_bits);
@@ -1290,11 +1289,27 @@ static Buffer fd_compress_block(const uint8_t *input, size_t start, size_t block
     FdPrices prices;
     prices.literal = (uint32_t *)malloc((block_size ? block_size : 1u) * sizeof(*prices.literal));
     if (!prices.literal) fail("out of memory");
+    FdPrices literal_prices;
+    literal_prices.literal = (uint32_t *)malloc((block_size ? block_size : 1u) *
+                                                sizeof(*literal_prices.literal));
+    if (!literal_prices.literal) fail("out of memory");
     FdSequences seqs = {0};
+    /* Two seeds: all literals, and greedy matches; the cheaper one prices pass 1. */
+    Buffer best = fd_encode_block(input, start, block_size, &seqs, &literal_prices);
     fd_greedy_parse(start, block_size, index, &seqs);
-    Buffer best = fd_encode_block(input, start, block_size, &seqs, &prices);
+    Buffer greedy = fd_encode_block(input, start, block_size, &seqs, &prices);
     int profile = getenv("BITE_PROFILE") != NULL;
-    if (profile) fprintf(stderr, "bite profile: mode27 greedy=%zu\n", best.size);
+    if (profile)
+        fprintf(stderr, "bite profile: mode27 literals=%zu greedy=%zu\n", best.size, greedy.size);
+    if (greedy.size < best.size) {
+        free(best.data);
+        best = greedy;
+    } else {
+        free(greedy.data);
+        uint32_t *swap = prices.literal;
+        prices = literal_prices;
+        literal_prices.literal = swap;
+    }
     for (unsigned pass = 0; pass < passes; ++pass) {
         fd_optimal_parse(input, start, block_size, index, &prices, chain, &seqs);
         Buffer candidate = fd_encode_block(input, start, block_size, &seqs, &prices);
@@ -1308,6 +1323,7 @@ static Buffer fd_compress_block(const uint8_t *input, size_t start, size_t block
     }
     free(seqs.items);
     free(prices.literal);
+    free(literal_prices.literal);
     return best;
 }
 
@@ -1394,9 +1410,9 @@ static void fd_context_literals_init(FdContextLiterals *ctx, const uint8_t *sect
     unsigned alphabet = 0;
     for (unsigned b = 0; b < 256; ++b) {
         unsigned present = fd_get(&header, 1);
-        if (b == 0) present = 1;
         ctx->model.rank[b] = present ? (uint8_t)alphabet++ : 0;
     }
+    if (!alphabet) fail("invalid mode-27 literal alphabet");
     ctx->model.alphabet = alphabet;
     uint64_t keys = 1;
     for (unsigned i = 0; i < ctx->model.order; ++i) keys *= alphabet;
