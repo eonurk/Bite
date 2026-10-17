@@ -536,17 +536,50 @@ typedef struct {
 } FdPrices;
 
 /* Literal context keys from up to FD_MAX_ORDER preceding bytes. */
+/* Bytes map to dense ranks of `bits` bits; the key packs the ranks of the
+ * `order` previous bytes, nearest in the low bits, so decoding can roll it. */
 typedef struct {
     unsigned order;
-    unsigned alphabet;
+    unsigned bits;
     uint8_t rank[256];
 } FdKeyModel;
 
 static inline unsigned fd_key_at(const FdKeyModel *model, const uint8_t *data, size_t pos) {
     unsigned key = 0;
     for (unsigned i = model->order; i > 0; --i)
-        key = key * model->alphabet + (pos >= i ? model->rank[data[pos - i]] : model->rank[0]);
+        key = (key << model->bits) | (pos >= i ? model->rank[data[pos - i]] : 0u);
     return key;
+}
+
+static unsigned fd_rank_bits(unsigned alphabet) {
+    unsigned bits = 0;
+    while ((1u << bits) < alphabet) ++bits;
+    return bits;
+}
+
+/* Normalizes every context table at one shared log so a single tANS state
+ * can move between tables; returns the log with the smallest estimate. */
+static unsigned fd_choose_shared_log(uint32_t (*counts)[256], unsigned tables,
+                                     FdTable *table) {
+    unsigned min_log = FD_MIN_LOG;
+    for (unsigned t = 0; t < tables; ++t) {
+        unsigned distinct = 0;
+        for (unsigned s = 0; s < 256; ++s) distinct += counts[t][s] != 0;
+        while ((1u << min_log) < distinct) ++min_log;
+    }
+    uint64_t best = UINT64_MAX;
+    unsigned best_log = FD_LIT_MAX_LOG;
+    FdTable candidate;
+    for (unsigned log = min_log; log <= FD_LIT_MAX_LOG; ++log) {
+        uint64_t cost = 0;
+        for (unsigned t = 0; t < tables; ++t) {
+            fd_normalize(counts[t], 256, log, &candidate);
+            cost += fd_table_cost(counts[t], &candidate);
+        }
+        if (cost < best) { best = cost; best_log = log; }
+    }
+    for (unsigned t = 0; t < tables; ++t) fd_normalize(counts[t], 256, best_log, &table[t]);
+    return best_log;
 }
 
 typedef struct {
@@ -779,11 +812,10 @@ static int fd_encode_literals_context(const uint8_t *input, size_t start, size_t
     for (size_t i = history; i < start + block_size; ++i) present[input[i]] = 1;
     unsigned alphabet = 0;
     for (unsigned b = 0; b < 256; ++b) model.rank[b] = present[b] ? (uint8_t)alphabet++ : 0;
-    model.alphabet = alphabet;
-    uint64_t key_count = 1;
-    for (unsigned i = 0; i < order; ++i) key_count *= alphabet;
-    if (key_count > FD_MAX_KEYS) return 0;
-    unsigned keys = (unsigned)key_count;
+    model.bits = fd_rank_bits(alphabet);
+    if (!model.bits && order > 1) return 0;
+    if (model.bits * order > 12u) return 0;
+    unsigned keys = 1u << (model.bits * order);
 
     /* Dense literal alphabet for clustering. */
     uint8_t dense[256], symbol_of[256];
@@ -815,27 +847,23 @@ static int fd_encode_literals_context(const uint8_t *input, size_t start, size_t
     FdTable *table = (FdTable *)malloc(tables * sizeof(*table));
     uint32_t (*counts)[256] = (uint32_t (*)[256])calloc(tables, sizeof(*counts));
     if (!table || !counts) fail("out of memory");
-    for (size_t i = 0; i < count; ++i) ++counts[map[literal_keys[i]]][literals[i]];
+    /* Tables code byte ranks, so the decoder rolls the key from the symbol. */
+    for (size_t i = 0; i < count; ++i) ++counts[map[literal_keys[i]]][model.rank[literals[i]]];
     for (unsigned t = 0; t < tables; ++t) {
         int any = 0;
         for (unsigned s = 0; s < 256; ++s) any |= counts[t][s] != 0;
-        if (!any) counts[t][symbol_of[0]] = 1;
-        fd_choose_table(counts[t], 256, FD_LIT_MAX_LOG, &table[t]);
+        if (!any) counts[t][model.rank[symbol_of[0]]] = 1;
     }
+    unsigned log = fd_choose_shared_log(counts, tables, table);
     FdEncoder *encoders = (FdEncoder *)malloc(tables * sizeof(*encoders));
-    uint32_t *states = (uint32_t *)malloc(tables * sizeof(*states));
-    if (!encoders || !states) fail("out of memory");
-    for (unsigned t = 0; t < tables; ++t) {
-        fd_build_encoder(&table[t], &encoders[t]);
-        states[t] = 1u << table[t].log;
-    }
+    if (!encoders) fail("out of memory");
+    for (unsigned t = 0; t < tables; ++t) fd_build_encoder(&table[t], &encoders[t]);
     FdBackWriter writer = {0};
-    for (size_t i = count; i > 0; --i) {
-        unsigned t = map[literal_keys[i - 1u]];
-        fd_encode_symbol(&writer, &encoders[t], &states[t], literals[i - 1u]);
-    }
-    for (unsigned t = tables; t > 0; --t)
-        fd_back_put(&writer, states[t - 1u], table[t - 1u].log);
+    uint32_t state = 1u << log;
+    for (size_t i = count; i > 0; --i)
+        fd_encode_symbol(&writer, &encoders[map[literal_keys[i - 1u]]], &state,
+                         model.rank[literals[i - 1u]]);
+    fd_back_put(&writer, state, log);
     Buffer stream = fd_back_finish(&writer);
 
     Buffer section = {0};
@@ -843,6 +871,7 @@ static int fd_encode_literals_context(const uint8_t *input, size_t start, size_t
     fd_put(&header, order - 1u, 3);
     for (unsigned b = 0; b < 256; ++b) fd_put(&header, present[b], 1);
     fd_put(&header, tables - 1u, 6);
+    fd_put(&header, log - FD_MIN_LOG, 3);
     unsigned map_bits = fd_bits_for(tables);
     for (unsigned key = 0; key < keys; ++key) fd_put(&header, map[key], map_bits);
     for (unsigned t = 0; t < tables; ++t) fd_write_table(&header, &table[t]);
@@ -855,10 +884,11 @@ static int fd_encode_literals_context(const uint8_t *input, size_t start, size_t
         if (!prices) fail("out of memory");
         for (unsigned t = 0; t < tables; ++t) fd_table_prices(&table[t], 256, prices[t]);
         for (size_t i = 0; i < block_size; ++i)
-            position_prices[i] = prices[map[fd_key_at(&model, input, start + i)]][input[start + i]];
+            position_prices[i] =
+                prices[map[fd_key_at(&model, input, start + i)]][model.rank[input[start + i]]];
         free(prices);
     }
-    free(states); free(encoders); free(counts); free(table);
+    free(encoders); free(counts); free(table);
     free(histograms); free(literal_keys);
     out->section = section;
     out->mode = 2;
@@ -1396,9 +1426,11 @@ static void fd_decode_literals_order0(const uint8_t *section, size_t size, uint8
 typedef struct {
     FdKeyModel model;
     unsigned tables;
-    uint8_t map[FD_MAX_KEYS];
-    FdDecodeTable *decoders;
-    uint32_t states[FD_MAX_TABLES];
+    unsigned mask;
+    uint32_t offsets[FD_MAX_KEYS];
+    uint8_t byte_of_rank[256];
+    FdDecodeEntry *entries;
+    uint32_t state;
     FdBackReader reader;
 } FdContextLiterals;
 
@@ -1408,46 +1440,72 @@ static void fd_context_literals_init(FdContextLiterals *ctx, const uint8_t *sect
     ctx->model.order = fd_get(&header, 3) + 1u;
     if (ctx->model.order > FD_MAX_ORDER) fail("invalid mode-27 literal order");
     unsigned alphabet = 0;
+    memset(ctx->byte_of_rank, 0, sizeof(ctx->byte_of_rank));
     for (unsigned b = 0; b < 256; ++b) {
         unsigned present = fd_get(&header, 1);
+        if (present) ctx->byte_of_rank[alphabet] = (uint8_t)b;
         ctx->model.rank[b] = present ? (uint8_t)alphabet++ : 0;
     }
     if (!alphabet) fail("invalid mode-27 literal alphabet");
-    ctx->model.alphabet = alphabet;
-    uint64_t keys = 1;
-    for (unsigned i = 0; i < ctx->model.order; ++i) keys *= alphabet;
-    if (keys > FD_MAX_KEYS) fail("invalid mode-27 literal key space");
+    ctx->model.bits = fd_rank_bits(alphabet);
+    if ((!ctx->model.bits && ctx->model.order > 1) || ctx->model.bits * ctx->model.order > 12u)
+        fail("invalid mode-27 literal key space");
+    unsigned keys = 1u << (ctx->model.bits * ctx->model.order);
+    ctx->mask = keys - 1u;
     ctx->tables = fd_get(&header, 6) + 1u;
+    unsigned log = fd_get(&header, 3) + FD_MIN_LOG;
+    if (log > FD_LIT_MAX_LOG) fail("invalid mode-27 literal table log");
     unsigned map_bits = fd_bits_for(ctx->tables);
     for (unsigned key = 0; key < keys; ++key) {
-        ctx->map[key] = (uint8_t)fd_get(&header, map_bits);
-        if (ctx->map[key] >= ctx->tables) fail("invalid mode-27 literal context map");
+        unsigned table = fd_get(&header, map_bits);
+        if (table >= ctx->tables) fail("invalid mode-27 literal context map");
+        ctx->offsets[key] = (uint32_t)table << log;
     }
-    ctx->decoders = (FdDecodeTable *)malloc(ctx->tables * sizeof(*ctx->decoders));
-    if (!ctx->decoders) fail("out of memory");
-    unsigned logs[FD_MAX_TABLES];
+    ctx->entries = (FdDecodeEntry *)malloc(((size_t)ctx->tables << log) * sizeof(*ctx->entries));
+    if (!ctx->entries) fail("out of memory");
     for (unsigned t = 0; t < ctx->tables; ++t) {
         FdTable table;
-        fd_read_table(&header, &table, 256, FD_LIT_MAX_LOG);
-        fd_build_decoder(&table, ctx->decoders[t].entries);
-        logs[t] = table.log;
+        fd_read_table(&header, &table, alphabet, FD_LIT_MAX_LOG);
+        if (table.log != log) fail("invalid mode-27 literal table log");
+        fd_build_decoder(&table, ctx->entries + ((size_t)t << log));
     }
     size_t pos = (header.position + 7u) >> 3;
     if (pos > size) fail("truncated mode-27 literal header");
     fd_back_init(&ctx->reader, section + pos, size - pos);
-    for (unsigned t = 0; t < ctx->tables; ++t) {
-        ctx->states[t] = fd_back_get(&ctx->reader, logs[t]);
-        fd_back_reload(&ctx->reader);
-    }
+    ctx->state = fd_back_get(&ctx->reader, log);
+    fd_back_reload(&ctx->reader);
 }
 
-static inline uint8_t fd_context_literal(FdContextLiterals *ctx, const uint8_t *output,
-                                         size_t pos) {
-    unsigned t = ctx->map[fd_key_at(&ctx->model, output, pos)];
-    FdDecodeEntry e = ctx->decoders[t].entries[ctx->states[t]];
-    ctx->states[t] = e.base + fd_back_get(&ctx->reader, e.bits);
-    fd_back_reload(&ctx->reader);
-    return e.symbol;
+/* Decodes a literal run in place; the key rolls over the decoded bytes. */
+static inline void fd_context_run(FdContextLiterals *ctx, uint8_t *out, size_t at, size_t n) {
+    if (!n) return;
+    unsigned key = fd_key_at(&ctx->model, out, at);
+    const unsigned bits = ctx->model.bits, mask = ctx->mask;
+    const uint32_t *offsets = ctx->offsets;
+    const FdDecodeEntry *entries = ctx->entries;
+    const uint8_t *byte_of_rank = ctx->byte_of_rank;
+    uint32_t state = ctx->state;
+    FdBackReader reader = ctx->reader;
+    uint8_t *dst = out + at;
+    size_t j = 0;
+    for (; j + 4u <= n; j += 4u) {
+        for (unsigned k = 0; k < 4; ++k) {
+            FdDecodeEntry e = entries[offsets[key] + state];
+            dst[j + k] = byte_of_rank[e.symbol];
+            state = e.base + fd_back_get(&reader, e.bits);
+            key = ((key << bits) | e.symbol) & mask;
+        }
+        fd_back_reload(&reader);
+    }
+    for (; j < n; ++j) {
+        FdDecodeEntry e = entries[offsets[key] + state];
+        dst[j] = byte_of_rank[e.symbol];
+        state = e.base + fd_back_get(&reader, e.bits);
+        key = ((key << bits) | e.symbol) & mask;
+    }
+    fd_back_reload(&reader);
+    ctx->state = state;
+    ctx->reader = reader;
 }
 
 static void fd_decode_block(Buffer *output, const uint8_t *input, size_t input_size,
@@ -1551,9 +1609,7 @@ static void fd_decode_block(Buffer *output, const uint8_t *input, size_t input_s
                 fail("invalid mode-27 sequence");
             literals_left -= literal_length;
             if (ctx) {
-                size_t at = (size_t)(op - out_base);
-                for (size_t j = 0; j < literal_length; ++j)
-                    out_base[at + j] = fd_context_literal(ctx, out_base, at + j);
+                fd_context_run(ctx, out_base, (size_t)(op - out_base), literal_length);
             } else {
                 fd_copy16(op, lp);
                 if (literal_length > 16) {
@@ -1582,13 +1638,10 @@ static void fd_decode_block(Buffer *output, const uint8_t *input, size_t input_s
     }
     if (literals_left != (size_t)(out_end - op)) fail("invalid mode-27 trailing literals");
     if (ctx) {
-        size_t at = (size_t)(op - out_base);
-        for (size_t j = 0; j < literals_left; ++j)
-            out_base[at + j] = fd_context_literal(ctx, out_base, at + j);
-        for (unsigned t = 0; t < ctx->tables; ++t)
-            if (ctx->states[t]) fail("invalid mode-27 literal final state");
+        fd_context_run(ctx, out_base, (size_t)(op - out_base), literals_left);
+        if (ctx->state) fail("invalid mode-27 literal final state");
         fd_back_check_end(&ctx->reader);
-        free(ctx->decoders);
+        free(ctx->entries);
         free(ctx);
     } else if (literals_left) {
         memcpy(op, lp, literals_left);
