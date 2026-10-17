@@ -4,6 +4,13 @@
 static size_t checked;
 
 static void check(const uint8_t *data, size_t size) {
+    /* EXP-0083: the SA-IS dispatcher must reproduce prefix doubling exactly. */
+    uint32_t doubling_primary = 0, primary = 0;
+    Buffer doubling = bwt_transform_doubling(data, size, &doubling_primary);
+    Buffer transformed = bwt_transform(data, size, &primary);
+    if (primary != doubling_primary || memcmp(doubling.data, transformed.data, size))
+        fail("BWT sorter mismatch");
+    free(doubling.data); free(transformed.data);
     Buffer coded = bwt_encode(data, size);
     Buffer decoded = bwt_decode(coded.data, coded.size, size);
     if (decoded.size != size || memcmp(data, decoded.data, size))

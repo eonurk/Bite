@@ -6,6 +6,7 @@ from pathlib import Path
 import random
 import struct
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +20,9 @@ def main():
     flags += ["-O1", "-g", "-fsanitize=address,undefined", "-fno-omit-frame-pointer"] if args.sanitize else ["-O2"]
     env = dict(os.environ)
     if args.sanitize:
-        env["ASAN_OPTIONS"] = "detect_leaks=1:quarantine_size_mb=32"
+        # Apple's AddressSanitizer aborts when asked for leak detection it lacks.
+        leaks = "0" if sys.platform == "darwin" else "1"
+        env["ASAN_OPTIONS"] = f"detect_leaks={leaks}:quarantine_size_mb=32"
         env["UBSAN_OPTIONS"] = "halt_on_error=1"
     with tempfile.TemporaryDirectory() as directory:
         temp = Path(directory)
