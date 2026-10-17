@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "bin" / "bite-bench"
 CODECS = {
     "bite-max-bwt": ("cmax", "d"),
+    "bite-ccm": ("ccm", "d"),
     "bite-bwt": ("cbwt", "d"),
     "bite-fast": ("cfast", "d"),
     "bite-link-split-delta-filter": ("clblinksdf", "d"),
