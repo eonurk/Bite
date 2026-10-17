@@ -1203,6 +1203,7 @@ static Buffer adaptive_order1_arithmetic_decode(const uint8_t *input, size_t inp
 }
 
 #include "bite_bwt.h"
+#include "bite_cm.h"
 
 static size_t small_alphabet_context_count(unsigned alphabet_size) {
     size_t count = 1;
@@ -4622,6 +4623,7 @@ typedef struct {
     int entropy, split_entropy, delta_stride, sampled_delta, entropy_parse;
     const WideMatchIndex *wide_index;
     Buffer trial, huffman, split, parsed_split, transformed_split, small_alphabet, bwt;
+    Buffer context_mix;
     size_t payload_size, transformed_stride;
     uint8_t split_mode, parsed_mode;
     WideEncoding transformed_wide, wide_split;
@@ -4776,7 +4778,8 @@ static void linked_wide_task(void *opaque) {
         int arithmetic_level = entropy_parse > 8 ? entropy_parse - 8 : 0;
         if (entropy_parse == 31) arithmetic_level = 19;
         if (entropy_parse == 32) arithmetic_level = 25;
-        if (entropy_parse == 33 || entropy_parse == 34) arithmetic_level = 27;
+        if (entropy_parse == 33 || entropy_parse == 34 || entropy_parse == 38)
+            arithmetic_level = 27;
         wide_split = wide_split_huffman_encode(
             input, input_size, pos, decoded_size, &wide_index,
             arithmetic_level);
@@ -4796,7 +4799,7 @@ static void linked_small_alphabet_task(void *opaque) {
     (void)input_size; (void)pos; (void)history_start; (void)history_size; (void)lazy_limit;
     (void)entropy; (void)split_entropy; (void)delta_stride; (void)sampled_delta;
     Buffer small_alphabet = {0};
-    if (entropy_parse >= 31 && entropy_parse <= 34)
+    if ((entropy_parse >= 31 && entropy_parse <= 34) || entropy_parse == 38)
         small_alphabet = small_alphabet_order4_encode(input + pos, decoded_size);
     w->small_alphabet = small_alphabet;
 }
@@ -4812,9 +4815,15 @@ static void linked_bwt_task(void *opaque) {
     int entropy_parse = w->entropy_parse;
     (void)input_size; (void)pos; (void)history_start; (void)history_size; (void)lazy_limit;
     (void)entropy; (void)split_entropy; (void)delta_stride; (void)sampled_delta;
-    Buffer bwt = entropy_parse == 34
+    Buffer bwt = entropy_parse == 34 || entropy_parse == 38
         ? bwt_encode(input + pos, decoded_size) : (Buffer){0};
     w->bwt = bwt;
+}
+
+static void linked_context_mix_task(void *opaque) {
+    LinkedBlockWork *w = (LinkedBlockWork *)opaque;
+    w->context_mix = w->entropy_parse == 38
+        ? cm_encode(w->input + w->pos, w->decoded_size) : (Buffer){0};
 }
 
 static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
@@ -4883,7 +4892,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
         /* Longest first, so a small thread count still overlaps the rest. */
         BiteTask tasks[] = {{linked_wide_task, &work}, {linked_legacy_task, &work},
                             {linked_delta_task, &work}, {linked_small_alphabet_task, &work},
-                            {linked_bwt_task, &work}};
+                            {linked_bwt_task, &work}, {linked_context_mix_task, &work}};
         run_tasks(tasks, sizeof(tasks) / sizeof(tasks[0]));
         if (profile) {
             fprintf(stderr, "bite profile: block-candidates %.6f s\n",
@@ -4896,6 +4905,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
         size_t payload_size = work.payload_size, transformed_stride = work.transformed_stride;
         uint8_t split_mode = work.split_mode, parsed_mode = work.parsed_mode;
         WideEncoding transformed_wide = work.transformed_wide, wide_split = work.wide_split;
+        Buffer context_mix = work.context_mix;
         uint8_t mode = 0;
         size_t stored_size = decoded_size;
         const Buffer *selected_split = NULL;
@@ -4932,10 +4942,16 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
             mode = 25;
             stored_size = bwt.size;
         }
+        if (context_mix.data && context_mix.size < stored_size) {
+            mode = 28;
+            stored_size = context_mix.size;
+        }
         append_byte(&output, mode);
         append_u32le(&output, (uint32_t)decoded_size);
         append_u32le(&output, (uint32_t)stored_size);
-        if (mode == 25)
+        if (mode == 28)
+            append_bytes(&output, context_mix.data, context_mix.size);
+        else if (mode == 25)
             append_bytes(&output, bwt.data, bwt.size);
         else if (mode == 4)
             append_bytes(&output, trial.data + HEADER_SIZE, payload_size);
@@ -4970,6 +4986,7 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
         free(wide_split.data.data);
         free(small_alphabet.data);
         free(bwt.data);
+        free(context_mix.data);
         free(trial.data);
         pos += decoded_size;
     }
@@ -5036,7 +5053,8 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size, int fas
         if ((mode > 2 && mode != 4 && mode != 5 && mode != 6 && mode != 7 &&
              mode != 8 && mode != 9 && mode != 10 && mode != 11 && mode != 12 &&
              mode != 13 && mode != 14 && mode != 15 && mode != 16 && mode != 17 &&
-             mode != 18 && mode != 20 && mode != 22 && mode != 23 && mode != 24 && mode != 25) ||
+             mode != 18 && mode != 20 && mode != 22 && mode != 23 && mode != 24 && mode != 25 &&
+             mode != 28) ||
             block_decoded == 0 || block_decoded > WHOLE_BLOCK_SIZE ||
             block_decoded > decoded_size - output.size || block_stored > input_size - ip)
             fail("invalid block");
@@ -5118,6 +5136,10 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size, int fas
             Buffer decoded = bwt_decode(input + ip, block_stored, block_decoded);
             append_bytes(&output, decoded.data, decoded.size);
             free(decoded.data);
+        } else if (mode == 28) {
+            Buffer decoded = cm_decode(input + ip, block_stored, block_decoded);
+            append_bytes(&output, decoded.data, decoded.size);
+            free(decoded.data);
         } else if (mode == 23) {
             Buffer decoded = small_alphabet_order4_decode(
                 input + ip, block_stored, block_decoded);
@@ -5162,19 +5184,20 @@ static void write_file(const char *path, const Buffer *buffer) {
 #ifndef BITE_NO_MAIN
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite cmax|cfast|cbwt|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite cmax|ccm|cfast|cbwt|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
     /* Short public presets keep historical experiment names byte-compatible. */
     if (strcmp(argv[1], "cmax") == 0 || strcmp(argv[1], "cbwt") == 0 ||
-        strcmp(argv[1], "cfast") == 0) {
+        strcmp(argv[1], "cfast") == 0 || strcmp(argv[1], "ccm") == 0) {
         Buffer input = read_file(argv[2]);
         Buffer output = strcmp(argv[1], "cbwt") == 0
             ? compress_bwt_blocked(input.data, input.size)
             : compress_linked_blocked(input.data, input.size, MAX_MATCH,
                                        1, 1, 1, 1,
-                                       strcmp(argv[1], "cmax") == 0 ? 34 : 32);
+                                       strcmp(argv[1], "ccm") == 0 ? 38 :
+                                       (strcmp(argv[1], "cmax") == 0 ? 34 : 32));
         write_file(argv[3], &output);
         free(input.data); free(output.data);
         return 0;
@@ -5417,7 +5440,7 @@ int main(int argc, char **argv) {
     int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dwork") == 0 ||
                     strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite cmax|cfast|cbwt|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite cmax|ccm|cfast|cbwt|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }

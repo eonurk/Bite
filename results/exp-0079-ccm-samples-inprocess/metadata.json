@@ -1,0 +1,79 @@
+{
+  "benchmark_schema": 2,
+  "aggregate_excluded_files": [],
+  "benchmark_kind": "in_process",
+  "timestamp_utc": "2026-10-17T07:55:17Z",
+  "repeats": 1,
+  "warmups_per_file": 1,
+  "clock": "CLOCK_MONOTONIC",
+  "corpus_dir": "/home/user/Bite/corpus/samples-exp0079",
+  "runner_sha256": "6d6736eb5ef48998c2f63b5021e21550ddf41d91706a671956adfecc6ffeee7b",
+  "git_head": "8651df997dab8faa672732f970f5bf748f03c592",
+  "files": [
+    {
+      "path": "core.py",
+      "bytes": 147845,
+      "sha256": "4c65a613c1c407dce907a4e123b12cec5fe0f62088a8b9f86fabd4b60c4b6d78"
+    },
+    {
+      "path": "createdb.1",
+      "bytes": 8378,
+      "sha256": "f42f221dfca287254615a679491f6193dd31fa419b95db025a7ff7f421a5cf15"
+    },
+    {
+      "path": "gfdl.txt",
+      "bytes": 22955,
+      "sha256": "110535522396708cea37c72a802c5e7e81391139f5f7985631c93ef242b206a4"
+    },
+    {
+      "path": "gpl3.txt",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "path": "libatomic.a",
+      "bytes": 139488,
+      "sha256": "663d9712a283947e522ca0d5a3972ceb76c92998875f95b0790b61b58459c21b"
+    },
+    {
+      "path": "ls.bin",
+      "bytes": 142312,
+      "sha256": "2726eb35864608ff34969fbf45ef4afcbba95eefed5ce5653c9c0124c4cd26cf"
+    },
+    {
+      "path": "make.bin",
+      "bytes": 259808,
+      "sha256": "d78b8f1d099fbcfb6f2f49ab87223b9b68fb3956642f92d6ec6de812e8afa965"
+    },
+    {
+      "path": "services.txt",
+      "bytes": 12813,
+      "sha256": "f6183055fd949f9c53d49ee620f85d0150123ea691d25ed1bba0c641b4ee2f48"
+    },
+    {
+      "path": "stdlib.h",
+      "bytes": 41032,
+      "sha256": "21500d5cb6062df47d6507baef6111cc951ceece4e2df26289a420fcf05ebec4"
+    },
+    {
+      "path": "stl_algo.h",
+      "bytes": 217485,
+      "sha256": "5d171b391df65fc178718d793f121c997942d0bdc4e713110bba08464c81b6bc"
+    },
+    {
+      "path": "zstd.html",
+      "bytes": 135086,
+      "sha256": "6db12bb98c1e7fad54d748916b2b7ffac49ccb9234aa4d24535adbbbd73263a3"
+    }
+  ],
+  "codecs": {
+    "bite-ccm": [
+      "ccm",
+      "d"
+    ],
+    "bite-max-bwt": [
+      "cmax",
+      "d"
+    ]
+  }
+}

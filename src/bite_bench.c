@@ -24,6 +24,9 @@ static double median(double *values, size_t count) {
 static Buffer benchmark_compress(const char *mode, const Buffer *input) {
     if (strcmp(mode, "cbwt") == 0)
         return compress_bwt_blocked(input->data, input->size);
+    if (strcmp(mode, "ccm") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 38);
     if (strcmp(mode, "cmax") == 0 || strcmp(mode, "cfast") == 0)
         return compress_linked_blocked(input->data, input->size, MAX_MATCH,
                                        1, 1, 1, 1, strcmp(mode, "cmax") == 0 ? 34 : 32);

@@ -1,0 +1,3 @@
+codec,aggregate_files,excluded_files,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-ccm,14,1,5647810,721843,1.022474906202581,7.824152897513725,103.798030239,9.230643072,0.05441153350401393,0.6118544456704132,True
+bite-max-bwt,14,1,5647810,906048,1.2833972814241272,6.233455622660168,87.649944385,0.219743816,0.06443597927674828,25.70179267297333,True

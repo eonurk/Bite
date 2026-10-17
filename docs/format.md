@@ -133,3 +133,23 @@ mode 25. `cbwt` isolates the new path for experiments. The implementation is
 self-contained C; the established block-sorting approach is also described in
 the [bzip2 documentation](https://www.sourceware.org/bzip2/manual/manual.html).
 This is a complementary representation in Bite, not a claim of inventing BWT.
+
+## Mode 28: bitwise context mixing (EXP-0079)
+
+EXP-0079 adds block mode 28, a block-local bitwise context-mixing coder. The
+payload is a carry-less 32-bit binary arithmetic code; the decoded size comes
+from the block header, and the decoder must consume exactly the stored bytes.
+Each byte is coded most-significant bit first. Fourteen contexts (orders 0-4
+and 6, word and word+previous-byte hashes, column with the byte above, skip
+and sparse byte pairs, bytes 5-8, and an indirect two-byte history) index
+nibble buckets of bounded bit-history states whose probabilities are learned
+per context. A six-byte-hash match model contributes the expected bit of the
+longest recent repeat. Four logistic mixers, selected by the partial byte,
+match state, previous byte and the byte before it, feed a second-layer mixer;
+three adaptive probability maps keyed by the partial byte, order-1 and match
+state refine the result. All model state is reconstructed from decoded bytes.
+
+Preset `ccm` (entropy_parse 38) runs every `cmax` candidate and additionally
+compares the complete mode-28 payload, keeping it only when strictly smaller,
+so `ccm` never produces a larger block than `cmax`. Older decoders do not
+support mode 28.

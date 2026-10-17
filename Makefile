@@ -1,7 +1,7 @@
 CC ?= cc
 CFLAGS ?= -O3 -DNDEBUG -std=c11 -Wall -Wextra -Wpedantic -pthread
 
-.PHONY: all clean test test-bwt corpus research-corpus benchmark benchmark-screen benchmark-validate
+.PHONY: all clean test test-bwt test-cm corpus research-corpus benchmark benchmark-screen benchmark-validate
 
 CACHE ?= results/exp-0004
 LABEL ?= staged
@@ -29,6 +29,9 @@ test: bin/bite corpus
 
 test-bwt:
 	python3 scripts/test_bwt.py
+
+test-cm:
+	python3 scripts/test_cm.py
 
 benchmark: bin/bite corpus
 	python3 scripts/benchmark.py --stage audit --repeats 3
