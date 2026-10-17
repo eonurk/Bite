@@ -1,0 +1,42 @@
+{
+  "benchmark_schema": 1,
+  "timestamp_utc": "2026-10-17T07:53:57Z",
+  "stage": "screen",
+  "repeats": 1,
+  "platform": "Linux vm 6.18.44-fc-v139 #1 SMP PREEMPT_DYNAMIC @0 x86_64 x86_64 x86_64 GNU/Linux",
+  "platform_compat": "Linux 6.18.44-fc-v139 #1 SMP PREEMPT_DYNAMIC @0 x86_64 x86_64 x86_64 GNU/Linux",
+  "git_head": "18bb02075faf4e5e4753aea7ccc133c7164c5695",
+  "corpus_dir": "/tmp/claude-0/cmix-corpus",
+  "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "bite_sha256": "217ddcc7567418bb17e11a8847af70042052eec0e4e6b6cb0887ebe029482e2a",
+  "peak_memory_source": "GNU time -f %M (KiB x 1024)",
+  "tools": {
+    "cmix": "cmix v21 (c443679), no dictionary"
+  },
+  "files": [
+    {
+      "path": "calgary/obj1",
+      "bytes": 21504,
+      "sha256": "8c06109caffd7e794516e4ed10095b0238ea8df63ed66840907cd4dd23e2cf72"
+    },
+    {
+      "path": "calgary/paper1",
+      "bytes": 53161,
+      "sha256": "8d9c42d9fa58b5bce1a8b5fae3cc27c9eb7cc7a032bc12a633d44e816497e143"
+    },
+    {
+      "path": "calgary/progc",
+      "bytes": 39611,
+      "sha256": "151377a9d6aa9b7e872000269707a15e2b038c826340628e6f4d8b4db9ec3c19"
+    },
+    {
+      "path": "calgary/progp",
+      "bytes": 49379,
+      "sha256": "d0cd70ab5f7381a8584b25fa73b3608571a17ee1042cc5c546f63b904614d1bc"
+    }
+  ],
+  "aggregate_exclude": [],
+  "aggregate_excluded_files": [],
+  "cached_external_from": null,
+  "external_cache_fingerprint": "67809756e68daf03a0d2edd01b73d5b8e0a9298677d01fe6d16ade7de65de8ef"
+}
