@@ -18,7 +18,7 @@ Mac: the same process harness, 3 repeats, all codecs single-threaded
 
 | Codec | Bytes | Bits/byte | Encode | Decode |
 |---|---:|---:|---:|---:|
-| Bite `cmax` (EXP-0075, not yet validated) | 3,247,227 | 1.884 | 180.2 s | 0.79 s |
+| Bite `cmax` (EXP-0075) | 3,247,227 | 1.884 | 180.2 s | 0.79 s |
 | Brotli 11 | 3,283,714 | 1.905 | 19.9 s | 0.11 s |
 | Bite EXP-0074 (last validated size maximum) | 3,347,119 | 1.942 | 174.4 s | 0.71 s |
 | Bite `cfast` (EXP-0072) | 3,359,272 | 1.949 | 36.9 s | 0.60 s |
