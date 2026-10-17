@@ -26,6 +26,8 @@ static Buffer benchmark_compress(const char *mode, const Buffer *input) {
         return compress_bwt_blocked(input->data, input->size, 25);
     if (strcmp(mode, "cbwt2") == 0)
         return compress_bwt_blocked(input->data, input->size, 26);
+    if (strcmp(mode, "cbwt3") == 0)
+        return compress_bwt_blocked(input->data, input->size, 29);
     if (strcmp(mode, "cmax") == 0 || strcmp(mode, "cfast") == 0)
         return compress_linked_blocked(input->data, input->size, MAX_MATCH,
                                        1, 1, 1, 1, strcmp(mode, "cmax") == 0 ? 34 : 32);

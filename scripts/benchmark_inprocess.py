@@ -15,6 +15,7 @@ CODECS = {
     "bite-max-bwt": ("cmax", "d"),
     "bite-bwt": ("cbwt", "d"),
     "bite-bwt2": ("cbwt2", "d"),
+    "bite-bwt3": ("cbwt3", "d"),
     "bite-fast": ("cfast", "d"),
     "bite-link-split-delta-filter": ("clblinksdf", "d"),
     "bite-link-split-optimal": ("clblinksopt", "d"),
