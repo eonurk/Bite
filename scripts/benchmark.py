@@ -19,6 +19,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TIME = "/usr/bin/time"
 BENCHMARK_SCHEMA = 1
+GNU_TIME = False
+REFS = ROOT / "build" / "refs" / "bin"
+ARCHIVE = ROOT / "scripts" / "archive_codec.sh"
 
 # Files measured and round-trip checked per file, but kept out of the corpus
 # aggregate. `random.bin` is incompressible by construction: no codec can move
@@ -34,6 +37,12 @@ class Codec:
     compress: tuple[str, ...]
     decompress: tuple[str, ...]
     file_output: bool = False
+    # Run instead of `executable --version` when that does not identify the tool.
+    version_command: tuple[str, ...] = ()
+    # Binary whose size is reported when `executable` is a wrapper script.
+    binary: str = ""
+    # Size references run only when named with --codecs; audits and external caches skip them.
+    reference: bool = False
 
 
 CODECS = [
@@ -99,6 +108,21 @@ CODECS = [
     Codec("xz-9", "xz", ("-9", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("xz-9e", "xz", ("-9e", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("lz4", "lz4", ("-q", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),
+    # Size-oriented references (EXP-0080). scripts/fetch_reference_codecs.sh pins and
+    # builds bsc and cmix into build/refs; bzip2, 7-Zip and zpaq come from the distribution.
+    Codec("bzip2-9", "bzip2", ("-9", "-c", "{input}"), ("-d", "-c", "{input}"),
+          version_command=("sh", "-c", "bzip2 --version 2>&1 </dev/null"), reference=True),
+    Codec("bsc", str(REFS / "bsc"), ("e", "{input}", "{output}"), ("d", "{input}", "{output}"), True,
+          version_command=(str(REFS / "bsc"),), reference=True),
+    Codec("bsc-max", str(REFS / "bsc"), ("e", "{input}", "{output}", "-e2srca"), ("d", "{input}", "{output}"), True,
+          version_command=(str(REFS / "bsc"),), reference=True),
+    Codec("ppmd-7z-mx9", str(ARCHIVE), ("7z-ppmd", "c", "{input}", "{output}", "-m0=PPMd", "-mx=9"),
+          ("7z-ppmd", "d", "{input}", "{output}"), True, version_command=("7z", "i"),
+          binary="/usr/lib/7zip/7z" if Path("/usr/lib/7zip/7z").exists() else "7z", reference=True),
+    Codec("zpaq-m5", str(ARCHIVE), ("zpaq", "c", "{input}", "{output}", "-m5"),
+          ("zpaq", "d", "{input}", "{output}"), True, version_command=("zpaq",), binary="zpaq", reference=True),
+    Codec("cmix", str(REFS / "cmix"), ("-c", "{input}", "{output}"), ("-d", "{input}", "{output}"), True,
+          version_command=("sh", "-c", f"cat {REFS / 'cmix.version'}"), reference=True),
 ]
 
 
@@ -110,20 +134,48 @@ def version(executable: str) -> str:
     return "version unavailable"
 
 
+def codec_version(codec: Codec) -> str:
+    if not codec.version_command:
+        return version(codec.executable)
+    result = subprocess.run(codec.version_command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return lines[0] if lines else "version unavailable"
+
+
+def gnu_time() -> bool:
+    result = subprocess.run([TIME, "--version"], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return result.returncode == 0 and "GNU" in result.stdout
+
+
 def run_timed(command: list[str], stdout_path: Path | None) -> tuple[float, int]:
+    # BSD time(1) prints bytes with -l; GNU time (Linux) prints KiB with -f %M, written to a
+    # side file so the codec's own stderr cannot be mistaken for it.
+    report = tempfile.NamedTemporaryFile(delete=False) if GNU_TIME else None
+    timer = [TIME, "-o", report.name, "-f", "%M"] if report else [TIME, "-l"]
     started = time.perf_counter()
     stdout = open(stdout_path, "wb") if stdout_path else subprocess.DEVNULL
     try:
-        result = subprocess.run([TIME, "-l", *command], stdout=stdout, stderr=subprocess.PIPE, text=False)
+        result = subprocess.run([*timer, *command], stdout=stdout, stderr=subprocess.PIPE, text=False)
     finally:
         if stdout_path:
             stdout.close()
     elapsed = time.perf_counter() - started
     stderr = result.stderr.decode(errors="replace")
+    if report:
+        report.close()
+        lines = Path(report.name).read_text().split()
+        os.unlink(report.name)
     if result.returncode != 0:
         raise RuntimeError(f"command failed ({result.returncode}): {' '.join(command)}\n{stderr}")
+    if report:
+        return elapsed, int(lines[-1]) * 1024 if lines and lines[-1].isdigit() else 0
     match = re.search(r"(\d+)\s+maximum resident set size", stderr)
     return elapsed, int(match.group(1)) if match else 0
+
+
+def binary_size(codec: Codec) -> int:
+    binary = codec.binary or codec.executable
+    return Path(shutil.which(binary) or binary).resolve().stat().st_size
 
 
 def command(codec: Codec, template: tuple[str, ...], source: Path, destination: Path) -> list[str]:
@@ -168,6 +220,8 @@ def in_aggregate(relative_path: str, excluded: tuple[str, ...]) -> bool:
 
 
 def main() -> None:
+    global GNU_TIME
+    GNU_TIME = gnu_time()
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", choices=("screen", "validate", "audit"), default="audit")
     parser.add_argument("--repeats", type=int)
@@ -189,7 +243,7 @@ def main() -> None:
         raise SystemExit("repeats must be positive")
     if args.stage != "audit" and not args.codecs:
         raise SystemExit(f"--stage {args.stage} requires --codecs CANDIDATE PARENT [...]")
-    selected = [c for c in CODECS if not args.codecs or c.name in args.codecs]
+    selected = [c for c in CODECS if c.name in args.codecs] if args.codecs else [c for c in CODECS if not c.reference]
     unknown = sorted(set(args.codecs or ()) - {c.name for c in selected})
     if unknown:
         raise SystemExit(f"unknown codecs: {', '.join(unknown)}")
@@ -220,7 +274,7 @@ def main() -> None:
     file_metadata = [{"path": str(p.relative_to(corpus_dir)), "bytes": p.stat().st_size,
                       "sha256": value.hex()} for p, value in zip(files, digests)]
     source_digests = dict(zip(files, digests))
-    tools = {c.name: version(c.executable) for c in selected}
+    tools = {c.name: codec_version(c) for c in selected}
     cached_rows = []
     cached_from = None
     if args.baseline_cache:
@@ -229,8 +283,9 @@ def main() -> None:
         cached_platform = cached_metadata.get("platform_compat") or compatible_platform(cached_metadata.get("platform", ""))
         if cached_platform != compatible_platform(platform) or cached_metadata.get("files") != file_metadata:
             raise SystemExit("baseline cache rejected: platform or corpus fingerprint changed")
-        external_codecs = [c for c in CODECS if is_external(c.name) and c.name not in {s.name for s in selected}]
-        current_external_tools = {c.name: version(c.executable) for c in external_codecs}
+        external_codecs = [c for c in CODECS if is_external(c.name) and not c.reference
+                           and c.name not in {s.name for s in selected}]
+        current_external_tools = {c.name: codec_version(c) for c in external_codecs}
         for name, current_version in current_external_tools.items():
             if cached_metadata.get("tools", {}).get(name) != current_version:
                 raise SystemExit(f"baseline cache rejected: tool version changed for {name}")
@@ -260,6 +315,7 @@ def main() -> None:
         "corpus_dir": str(corpus_dir),
         "compiler": version("cc"),
         "bite_sha256": digest(bite_path).hex() if bite_path.exists() else None,
+        "peak_memory_source": "GNU time -f %M (KiB x 1024)" if GNU_TIME else "BSD time -l",
         "tools": tools,
         "files": file_metadata,
         "aggregate_exclude": list(excluded),
@@ -304,7 +360,7 @@ def main() -> None:
                     "encode_MB_per_second": size / 1_000_000 / enc if enc else 0,
                     "decode_MB_per_second": size / 1_000_000 / dec if dec else 0,
                     "peak_memory_encode": max(encode_rss), "peak_memory_decode": max(decode_rss),
-                    "binary_size": Path(shutil.which(codec.executable) or codec.executable).stat().st_size,
+                    "binary_size": binary_size(codec),
                     "correct": True,
                 })
 
