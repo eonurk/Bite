@@ -123,6 +123,22 @@ CODECS = [
           ("zpaq", "d", "{input}", "{output}"), True, version_command=("zpaq",), binary="zpaq", reference=True),
     Codec("cmix", str(REFS / "cmix"), ("-c", "{input}", "{output}"), ("-d", "{input}", "{output}"), True,
           version_command=("sh", "-c", f"cat {REFS / 'cmix.version'}"), reference=True),
+    # Further levels of the same references, so the frontier is not an artifact of one setting.
+    *[Codec(f"zpaq-m{level}", str(ARCHIVE), ("zpaq", "c", "{input}", "{output}", f"-m{level}"),
+            ("zpaq", "d", "{input}", "{output}"), True, version_command=("zpaq",), binary="zpaq",
+            reference=True) for level in (1, 2, 3, 4)],
+    *[Codec(f"bsc-{name}", str(REFS / "bsc"), ("e", "{input}", "{output}", option),
+            ("d", "{input}", "{output}"), True, version_command=(str(REFS / "bsc"),), reference=True)
+      for name, option in (("e0", "-e0"), ("e2", "-e2"), ("m6e2", "-m6e2"))],
+    *[Codec(f"ppmd-7z-o{order}", str(ARCHIVE),
+            ("7z-ppmd", "c", "{input}", "{output}", f"-m0=PPMd:o={order}:mem=192m", "-mx=9"),
+            ("7z-ppmd", "d", "{input}", "{output}"), True, version_command=("7z", "i"),
+            binary="/usr/lib/7zip/7z" if Path("/usr/lib/7zip/7z").exists() else "7z", reference=True)
+      for order in (4, 8, 16)],
+    # Brotli's default 4 MiB window is smaller than E.coli and bible.txt; xz -9 and
+    # zstd -19 windows already exceed every research file, so they need no variant.
+    Codec("brotli-11-w24", "brotli", ("-q", "11", "-w", "24", "-c", "{input}"), ("-d", "-c", "{input}"),
+          reference=True),
 ]
 
 
