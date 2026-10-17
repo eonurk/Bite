@@ -5,6 +5,16 @@ initial codec is a 64 KiB-window LZSS design with a bounded hash-chain match
 finder and grouped literal/match control bits. It is intended for controlled
 experiments, not production use.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/progress-dark.png">
+  <img alt="Research-corpus bits per byte by experiment: kept improvements step down from 2.50 to 1.94, past zstd -19 and xz -9e; the unvalidated EXP-0075 BWT candidate reaches 1.88, below Brotli 11" src="docs/progress-light.png">
+</picture>
+
+Every point is a measured aggregate on the fixed 16-file public research
+corpus, taken from `results/*/summary.csv`. Experiments before EXP-0014 predate
+that corpus, and ticks along the bottom mark experiments screened only on
+samples. Regenerate with `python3 scripts/plot_progress.py`.
+
 The current EXP-0074 size-max endpoint is
 `clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3`. On the fixed public research corpus
 it compresses 13,787,888 bytes to 3,347,119 bytes (1.9421 bpb). That is 13,689
