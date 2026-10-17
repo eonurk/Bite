@@ -1,0 +1,3 @@
+codec,aggregate_files,excluded_files,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-bwt2,25,1,8458594,2072006,1.9596694202369802,4.082321190189604,12.641555867000001,12.140192958,0.6691102020187749,0.6967429619334061,True
+bite-bwt,25,1,8458594,2838031,2.6841633491334376,2.980444540598746,1.4309268290000001,0.74767624,5.91126941543983,11.313177479065002,True
