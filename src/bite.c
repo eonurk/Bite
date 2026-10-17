@@ -5054,7 +5054,7 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size, int fas
              mode != 8 && mode != 9 && mode != 10 && mode != 11 && mode != 12 &&
              mode != 13 && mode != 14 && mode != 15 && mode != 16 && mode != 17 &&
              mode != 18 && mode != 20 && mode != 22 && mode != 23 && mode != 24 && mode != 25 &&
-             mode != 28) ||
+             mode != 26 && mode != 28 && mode != 29) ||
             block_decoded == 0 || block_decoded > WHOLE_BLOCK_SIZE ||
             block_decoded > decoded_size - output.size || block_stored > input_size - ip)
             fail("invalid block");
@@ -5140,6 +5140,14 @@ static Buffer decompress_buffer(const uint8_t *input, size_t input_size, int fas
             Buffer decoded = cm_decode(input + ip, block_stored, block_decoded);
             append_bytes(&output, decoded.data, decoded.size);
             free(decoded.data);
+        } else if (mode == 26) {
+            Buffer decoded = bwt2_decode(input + ip, block_stored, block_decoded);
+            append_bytes(&output, decoded.data, decoded.size);
+            free(decoded.data);
+        } else if (mode == 29) {
+            Buffer decoded = bwt3_decode(input + ip, block_stored, block_decoded);
+            append_bytes(&output, decoded.data, decoded.size);
+            free(decoded.data);
         } else if (mode == 23) {
             Buffer decoded = small_alphabet_order4_decode(
                 input + ip, block_stored, block_decoded);
@@ -5184,16 +5192,21 @@ static void write_file(const char *path, const Buffer *buffer) {
 #ifndef BITE_NO_MAIN
 int main(int argc, char **argv) {
     if (argc != 4) {
-        fprintf(stderr, "usage: bite cmax|ccm|cfast|cbwt|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite cmax|ccm|cfast|cbwt|cbwt2|cbwt3|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
     /* Short public presets keep historical experiment names byte-compatible. */
     if (strcmp(argv[1], "cmax") == 0 || strcmp(argv[1], "cbwt") == 0 ||
+        strcmp(argv[1], "cbwt2") == 0 || strcmp(argv[1], "cbwt3") == 0 ||
         strcmp(argv[1], "cfast") == 0 || strcmp(argv[1], "ccm") == 0) {
         Buffer input = read_file(argv[2]);
         Buffer output = strcmp(argv[1], "cbwt") == 0
-            ? compress_bwt_blocked(input.data, input.size)
+            ? compress_bwt_blocked(input.data, input.size, 25)
+            : strcmp(argv[1], "cbwt2") == 0
+            ? compress_bwt_blocked(input.data, input.size, 26)
+            : strcmp(argv[1], "cbwt3") == 0
+            ? compress_bwt_blocked(input.data, input.size, 29)
             : compress_linked_blocked(input.data, input.size, MAX_MATCH,
                                        1, 1, 1, 1,
                                        strcmp(argv[1], "ccm") == 0 ? 38 :
@@ -5440,7 +5453,7 @@ int main(int argc, char **argv) {
     int is_decode = strcmp(argv[1], "d") == 0 || strcmp(argv[1], "dwork") == 0 ||
                     strcmp(argv[1], "dslow") == 0;
     if (!is_greedy && !is_lazy && !is_decode) {
-        fprintf(stderr, "usage: bite cmax|ccm|cfast|cbwt|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
+        fprintf(stderr, "usage: bite cmax|ccm|cfast|cbwt|cbwt2|cbwt3|c|cl|cb|clb|cbh|clbh|cblink|clblinkh|clblinks|clblinksopt2dfsbwasp2b16x2tdlmmdcra4|clblinksopt2dfsbwasp2b16x2tdlmmdcra4f|clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3|d|dwork|dslow INPUT OUTPUT\n");
         fprintf(stderr, "  c/cl: v1; cb/clb: v2; h: Huffman; link: linked history; d: decode\n");
         return 2;
     }
