@@ -1,0 +1,73 @@
+base samples=259840 devgen=1310585 flags=
+shift11 samples=259069 devgen=1317705 flags=-DCM_MIXER_SHIFT=11
+shift9 samples=264392 devgen=1306181 flags=-DCM_MIXER_SHIFT=9
+shift12 samples=260299 devgen=1327306 flags=-DCM_MIXER_SHIFT=12
+init8k samples=259048 devgen=1309754 flags=-DCM_MIXER_INIT=8192
+st40_2 samples= devgen= flags=-DCM_STATE_CAP=40 -DCM_STATE_DISCOUNT=2
+st24_3 samples=259912 devgen=1309487 flags=-DCM_STATE_CAP=24 -DCM_STATE_DISCOUNT=3
+st30_1 samples=260099 devgen=1313792 flags=-DCM_STATE_CAP=30 -DCM_STATE_DISCOUNT=1
+st20_2 samples=260082 devgen=1312499 flags=-DCM_STATE_CAP=20 -DCM_STATE_DISCOUNT=2
+mm8 samples=259794 devgen=1309938 flags=-DCM_MATCH_MIN=8u
+mm5 samples=259808 devgen=1310306 flags=-DCM_MATCH_MIN=5u
+lim255 samples=259762 devgen=1301681 flags=-DCM_MAP_LIMIT=255u
+lim127 samples=260167 devgen=1296263 flags=-DCM_MAP_LIMIT=127u
+mix1 samples=260256 devgen=1311874 flags=-DCM_MIXERS=1u
+mix2 samples=255356 devgen=1285512 flags=-DCM_MIXERS=2u
+mix4 samples=247627 devgen=1276184 flags=-DCM_MIXERS=4u
+mix3 samples=249992 devgen=1282357 flags=-DCM_MIXERS=3u
+fin14 samples=250360 devgen=1285386 flags=-DCM_FINAL_SHIFT=14
+fin12 samples=249929 devgen=1279848 flags=-DCM_FINAL_SHIFT=12
+fin11 samples=250276 devgen=1277780 flags=-DCM_FINAL_SHIFT=11
+fin15 samples=250955 devgen=1289479 flags=-DCM_FINAL_SHIFT=15
+lr10 samples=247417 devgen=1269749 flags=-DCM_LR_MIN=10
+lr6 samples=247863 devgen=1277373 flags=-DCM_LR_MIN=6
+m4 samples=247516 devgen=1272917 flags=
+b16 samples=247258 devgen=1272048 flags=-DCM_LR_BOOST=16
+b32 samples=247407 devgen=1271392 flags=-DCM_LR_BOOST=32
+lr6b24 samples=247344 devgen=1275724 flags=-DCM_LR_MIN=6 -DCM_LR_BOOST=24
+b16h16k samples=247385 devgen=1271134 flags=-DCM_LR_BOOST=16 -DCM_LR_HALF=16384u
+b16h1k samples=247324 devgen=1272508 flags=-DCM_LR_BOOST=16 -DCM_LR_HALF=1024u
+nolin samples=247258 devgen=1272048 flags=-DCM_LINEAR=0
+lin0s samples=255816 devgen=1226323 flags=-DCM_LINEAR_SHIFT=0
+lin2 samples=247118 devgen=1254330 flags=-DCM_LINEAR_SHIFT=2
+lin1 samples=248189 devgen=1240845 flags=
+drop3 samples=250744 devgen=1253449 flags=-DCM_DROP=3
+drop4 samples=248587 devgen=1253336 flags=-DCM_DROP=4
+drop2 samples=255389 devgen=1255361 flags=-DCM_DROP=2
+drop1 samples=252689 devgen=1309920 flags=-DCM_DROP=1
+drop8 samples=251568 devgen=1265269 flags=-DCM_DROP=8
+drop6 samples=248313 devgen=1330097 flags=-DCM_DROP=6
+drop5 samples=247849 devgen=1253509 flags=-DCM_DROP=5
+drop7 samples=248615 devgen=1329525 flags=-DCM_DROP=7
+ref samples=247118 devgen=1254330 flags=
+ex1 samples=247220 devgen=1253798 flags=-DCM_EXTRA1=1
+ex3 samples=243571 devgen=1226862 flags=-DCM_EXTRA1=3
+ex2 samples=246690 devgen=1251731 flags=-DCM_EXTRA1=2
+ex4 samples=244504 devgen=1247241 flags=-DCM_EXTRA1=4
+ex5 samples=244139 devgen=1250072 flags=-DCM_EXTRA1=5
+ex6 samples=245547 devgen=1237796 flags=-DCM_EXTRA1=6
+ex7 samples=245353 devgen=1031532 flags=-DCM_EXTRA1=7
+ex9 samples=245414 devgen=1246892 flags=-DCM_EXTRA1=9
+ex10 samples=246396 devgen=1238637 flags=-DCM_EXTRA1=10
+ex8 samples=247119 devgen=1252529 flags=-DCM_EXTRA1=8
+e3+7 samples=242389 devgen=1021656 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=7
+e3+5 samples=240620 devgen=1223269 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5
+e3+4 samples=242619 devgen=1223197 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=4
+e3+6 samples=242185 devgen=1211272 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=6
+e3+2 samples=243148 devgen=1224280 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=2
+e3+9 samples=241985 devgen=1221235 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=9
+e3+10 samples=242895 devgen=1211410 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=10
+e35+4 samples=239706 devgen=1219699 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5 -DCM_EXTRA3=4
+e35+7 samples=239434 devgen=1021093 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5 -DCM_EXTRA3=7
+e35+9 samples=239046 devgen=1217656 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5 -DCM_EXTRA3=9
+e35+6 samples=239386 devgen=1207806 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5 -DCM_EXTRA3=6
+e359+4 samples=238253 devgen=1215271 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5 -DCM_EXTRA3=9 -DCM_EXTRA4=4
+e359+6 samples=237916 devgen=1203404 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5 -DCM_EXTRA3=9 -DCM_EXTRA4=6
+e359+7 samples=237903 devgen=1015816 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5 -DCM_EXTRA3=9 -DCM_EXTRA4=7
+e359+7+6 samples=236878 devgen=1002690 flags=-DCM_EXTRA1=3 -DCM_EXTRA2=5 -DCM_EXTRA3=9 -DCM_EXTRA4=7 -DCM_EXTRA5=6
+p16 samples=236882 devgen=1002714 flags=
+a3 samples=236794 devgen=1002459 flags=-DCM_W_APM3=1
+pmin1 samples=236882 devgen=1002714 flags=-DCM_P_MIN=1
+a2 samples=236802 devgen=1002885 flags=-DCM_W_APM2=1
+pmin64 samples=237039 devgen=1005721 flags=-DCM_P_MIN=64
+final1 samples=236794 devgen=1002459 flags=
