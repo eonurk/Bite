@@ -20,6 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 TIME = "/usr/bin/time"
 BENCHMARK_SCHEMA = 1
 
+# Files measured and round-trip checked per file, but kept out of the corpus
+# aggregate. `random.bin` is incompressible by construction: no codec can move
+# it, so it only dilutes every aggregate ratio and every reported delta. It
+# stays in the run because raw fallback not expanding it is a real result.
+AGGREGATE_EXCLUDE = ("binary_data/random.bin",)
+
 
 @dataclass(frozen=True)
 class Codec:
@@ -60,12 +66,14 @@ CODECS = [
     Codec("zstd-3", "zstd", ("-q", "-3", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),
     Codec("zstd-6", "zstd", ("-q", "-6", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),
     Codec("zstd-19", "zstd", ("-q", "-19", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),
+    Codec("zstd-22", "zstd", ("-q", "--ultra", "-22", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),
     Codec("brotli-1", "brotli", ("-q", "1", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("brotli-6", "brotli", ("-q", "6", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("brotli-11", "brotli", ("-q", "11", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("xz-1", "xz", ("-1", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("xz-6", "xz", ("-6", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("xz-9", "xz", ("-9", "-c", "{input}"), ("-d", "-c", "{input}")),
+    Codec("xz-9e", "xz", ("-9e", "-c", "{input}"), ("-d", "-c", "{input}")),
     Codec("lz4", "lz4", ("-q", "-c", "{input}"), ("-q", "-d", "-c", "{input}")),
 ]
 
@@ -130,6 +138,11 @@ def truthy(value: object) -> bool:
     return value is True or str(value).lower() == "true"
 
 
+def in_aggregate(relative_path: str, excluded: tuple[str, ...]) -> bool:
+    """Exclusions are corpus-relative path suffixes, so one entry covers every corpus root."""
+    return not any(relative_path == e or relative_path.endswith("/" + e) for e in excluded)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", choices=("screen", "validate", "audit"), default="audit")
@@ -140,7 +153,12 @@ def main() -> None:
                         help="corpus root (default: corpus/dev)")
     parser.add_argument("--baseline-cache", type=Path,
                         help="reuse fingerprint-matched external rows from a prior results directory")
+    parser.add_argument("--aggregate-exclude", nargs="*", default=list(AGGREGATE_EXCLUDE),
+                        metavar="PATH",
+                        help="corpus-relative paths measured per file but left out of summary.csv "
+                             f"(default: {' '.join(AGGREGATE_EXCLUDE)}; pass with no values to aggregate everything)")
     args = parser.parse_args()
+    excluded = tuple(args.aggregate_exclude)
     if args.repeats is None:
         args.repeats = {"screen": 1, "validate": 3, "audit": 3}[args.stage]
     if args.repeats < 1:
@@ -163,6 +181,14 @@ def main() -> None:
     files = sorted(p for p in corpus_dir.rglob("*") if p.is_file() and p.name != "MANIFEST.json")
     if not files:
         raise SystemExit(f"corpus is empty: {corpus_dir}")
+    excluded_matched = [str(p.relative_to(corpus_dir)) for p in files
+                        if not in_aggregate(str(p.relative_to(corpus_dir)), excluded)]
+    unmatched = [e for e in excluded if not any(m == e or m.endswith("/" + e) for m in excluded_matched)]
+    if unmatched:
+        raise SystemExit(f"--aggregate-exclude matched no corpus file: {', '.join(unmatched)}")
+    if excluded_matched:
+        print(f"aggregate excludes {len(excluded_matched)} of {len(files)} files: "
+              f"{', '.join(excluded_matched)} (still measured and round-trip checked)", flush=True)
 
     platform = subprocess.check_output(["uname", "-a"], text=True).strip()
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -212,6 +238,8 @@ def main() -> None:
         "bite_sha256": digest(bite_path).hex() if bite_path.exists() else None,
         "tools": tools,
         "files": file_metadata,
+        "aggregate_exclude": list(excluded),
+        "aggregate_excluded_files": excluded_matched,
         "cached_external_from": cached_from,
         "external_cache_fingerprint": cache_fingerprint(platform, file_metadata, tools),
     }
@@ -242,8 +270,9 @@ def main() -> None:
                 size = source.stat().st_size
                 enc = statistics.median(encode_times)
                 dec = statistics.median(decode_times)
+                relative = str(source.relative_to(corpus_dir))
                 rows.append({
-                    "codec": codec.name, "file": str(source.relative_to(corpus_dir)),
+                    "codec": codec.name, "file": relative, "in_aggregate": in_aggregate(relative, excluded),
                     "original_size_bytes": size, "compressed_size_bytes": compressed_sizes[0],
                     "bits_per_byte": 8 * compressed_sizes[0] / size if size else 0,
                     "compression_ratio": size / compressed_sizes[0] if compressed_sizes[0] else 0,
@@ -255,6 +284,9 @@ def main() -> None:
                     "correct": True,
                 })
 
+    # Cached rows predate this column, and the flag is a property of the path, not the measurement.
+    for row in cached_rows:
+        row["in_aggregate"] = in_aggregate(row["file"], excluded)
     rows.extend(cached_rows)
     fields = list(rows[0])
     with open(output_dir / "per_file.csv", "w", newline="") as handle:
@@ -264,18 +296,21 @@ def main() -> None:
     summary_names.extend(sorted({r["codec"] for r in cached_rows} - set(summary_names)))
     for codec_name in summary_names:
         subset = [r for r in rows if r["codec"] == codec_name]
-        original = sum(int(r["original_size_bytes"]) for r in subset)
-        compressed = sum(int(r["compressed_size_bytes"]) for r in subset)
-        enc_time = sum(float(r["encode_time_seconds"]) for r in subset)
-        dec_time = sum(float(r["decode_time_seconds"]) for r in subset)
+        # Aggregate over the included files; correctness stays over every file measured.
+        counted = [r for r in subset if truthy(r["in_aggregate"])]
+        original = sum(int(r["original_size_bytes"]) for r in counted)
+        compressed = sum(int(r["compressed_size_bytes"]) for r in counted)
+        enc_time = sum(float(r["encode_time_seconds"]) for r in counted)
+        dec_time = sum(float(r["decode_time_seconds"]) for r in counted)
         summaries.append({
-            "codec": codec_name, "original_size_bytes": original, "compressed_size_bytes": compressed,
+            "codec": codec_name, "aggregate_files": len(counted), "excluded_files": len(subset) - len(counted),
+            "original_size_bytes": original, "compressed_size_bytes": compressed,
             "bits_per_byte": 8 * compressed / original, "compression_ratio": original / compressed,
             "encode_time_seconds": enc_time, "decode_time_seconds": dec_time,
             "encode_MB_per_second": original / 1_000_000 / enc_time,
             "decode_MB_per_second": original / 1_000_000 / dec_time,
-            "peak_memory_encode": max(int(r["peak_memory_encode"]) for r in subset),
-            "peak_memory_decode": max(int(r["peak_memory_decode"]) for r in subset),
+            "peak_memory_encode": max(int(r["peak_memory_encode"]) for r in counted),
+            "peak_memory_decode": max(int(r["peak_memory_decode"]) for r in counted),
             "binary_size": int(subset[0]["binary_size"]), "correct": all(truthy(r["correct"]) for r in subset),
         })
     with open(output_dir / "summary.csv", "w", newline="") as handle:

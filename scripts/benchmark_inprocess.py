@@ -38,6 +38,8 @@ def main() -> None:
     parser.add_argument("--codecs", nargs="+", default=["bite-link-split-delta-filter"])
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--label", default="inprocess")
+    parser.add_argument("--aggregate-exclude", nargs="*", default=["binary_data/random.bin"],
+                        help="measured path suffixes excluded from aggregate; pass empty to include all")
     args = parser.parse_args()
     if args.repeats < 1:
         raise SystemExit("repeats must be positive")
@@ -56,7 +58,8 @@ def main() -> None:
     output_dir = ROOT / "results" / args.label
     output_dir.mkdir(parents=True, exist_ok=True)
     metadata = {
-        "benchmark_schema": 1,
+        "benchmark_schema": 2,
+        "aggregate_excluded_files": args.aggregate_exclude,
         "benchmark_kind": "in_process",
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "repeats": args.repeats,
@@ -97,6 +100,10 @@ def main() -> None:
                 "decode_time_seconds": decode_time,
                 "encode_MB_per_second": size / 1_000_000 / encode_time if encode_time else 0,
                 "decode_MB_per_second": size / 1_000_000 / decode_time if decode_time else 0,
+                "in_aggregate": not any(
+                    str(source.relative_to(corpus_dir)) == suffix or
+                    str(source.relative_to(corpus_dir)).endswith("/" + suffix)
+                    for suffix in args.aggregate_exclude),
                 "correct": True,
             })
 
@@ -106,22 +113,25 @@ def main() -> None:
         writer.writerows(rows)
     summaries = []
     for codec_name in args.codecs:
-        subset = [row for row in rows if row["codec"] == codec_name]
+        measured = [row for row in rows if row["codec"] == codec_name]
+        subset = [row for row in measured if row["in_aggregate"]]
         original = sum(row["original_size_bytes"] for row in subset)
         compressed = sum(row["compressed_size_bytes"] for row in subset)
         encode_time = sum(row["encode_time_seconds"] for row in subset)
         decode_time = sum(row["decode_time_seconds"] for row in subset)
         summaries.append({
             "codec": codec_name,
+            "aggregate_files": len(subset),
+            "excluded_files": len(measured) - len(subset),
             "original_size_bytes": original,
             "compressed_size_bytes": compressed,
-            "bits_per_byte": 8 * compressed / original,
-            "compression_ratio": original / compressed,
+            "bits_per_byte": 8 * compressed / original if original else 0,
+            "compression_ratio": original / compressed if compressed else 0,
             "encode_time_seconds": encode_time,
             "decode_time_seconds": decode_time,
-            "encode_MB_per_second": original / 1_000_000 / encode_time,
-            "decode_MB_per_second": original / 1_000_000 / decode_time,
-            "correct": all(row["correct"] for row in subset),
+            "encode_MB_per_second": original / 1_000_000 / encode_time if encode_time else 0,
+            "decode_MB_per_second": original / 1_000_000 / decode_time if decode_time else 0,
+            "correct": all(row["correct"] for row in measured),
         })
     with open(output_dir / "summary.csv", "w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(summaries[0]))
