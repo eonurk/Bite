@@ -9,6 +9,12 @@ static void check(const uint8_t *data, size_t size) {
     if (decoded.size != size || memcmp(data, decoded.data, size))
         fail("BWT round-trip mismatch");
     free(coded.data); free(decoded.data);
+    /* Mode 26 shares the transform; check its context-mixed coder too. */
+    coded = bwt2_encode(data, size);
+    decoded = bwt2_decode(coded.data, coded.size, size);
+    if (decoded.size != size || memcmp(data, decoded.data, size))
+        fail("mode-26 BWT round-trip mismatch");
+    free(coded.data); free(decoded.data);
     ++checked;
 }
 
@@ -36,6 +42,6 @@ int main(void) {
             check(data, size);
         }
     }
-    printf("%zu forced BWT round trips passed\n", checked);
+    printf("%zu forced mode-25 and mode-26 BWT round trips passed\n", checked);
     return 0;
 }
