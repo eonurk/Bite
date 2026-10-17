@@ -1,0 +1,524 @@
+{
+  "corpus": "holdout-2026",
+  "experiment": "EXP-0081",
+  "lock_sha256": "6a6061d06fd8037f81a13309b4783f61018bd335751e2909cb14d45082297c2a",
+  "file_count": 37,
+  "total_bytes": 144681868,
+  "files": [
+    {
+      "path": "compressed/HappyFish.jpg",
+      "bytes": 8283,
+      "sha256": "ade5b67347d7f89b1539c93843f3f7178782a7e34eb1fe586f4a785c3e60a432",
+      "category": "compressed",
+      "source_url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/HappyFish.jpg",
+      "download": "HappyFish.jpg",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/basketball1.png",
+      "bytes": 132826,
+      "sha256": "ba06f6701f7260998b430c39b6557f775497e6ce7b1a74f0b7ea6af371bf54a6",
+      "category": "compressed",
+      "source_url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/basketball1.png",
+      "download": "basketball1.png",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/box_in_scene.png",
+      "bytes": 122490,
+      "sha256": "8b0225ff76244a42bd1400c0904f8b7afea7d97b7d8115495e42e98ad347bd51",
+      "category": "compressed",
+      "source_url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/box_in_scene.png",
+      "download": "box_in_scene.png",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/building.jpg",
+      "bytes": 79718,
+      "sha256": "742a1baad62ac82e91e718e77eedf7e85c2eddc4badfb8c87c6cbc86c45a8b07",
+      "category": "compressed",
+      "source_url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/building.jpg",
+      "download": "building.jpg",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/fruits.jpg",
+      "bytes": 82429,
+      "sha256": "9c031d80a1c52da5eca790db896baffec6a7e52bf786cdb7bbfca5c7f880e6a1",
+      "category": "compressed",
+      "source_url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/fruits.jpg",
+      "download": "fruits.jpg",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/graf1.png",
+      "bytes": 951440,
+      "sha256": "1504b769303c7bde00fa578eeaad3c68e02aceabeb1242e556f1f8d19e4bdea5",
+      "category": "compressed",
+      "source_url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/graf1.png",
+      "download": "graf1.png",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/guava-33.3.1-jre.jar",
+      "bytes": 3079289,
+      "sha256": "4bf0e2c5af8e4525c96e8fde17a4f7307f97f8478f11c4c8e35a0e3298ae4e90",
+      "category": "compressed",
+      "source_url": "https://repo1.maven.org/maven2/com/google/guava/guava/33.3.1-jre/guava-33.3.1-jre.jar",
+      "download": "guava-33.3.1-jre.jar",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/home.jpg",
+      "bytes": 32197,
+      "sha256": "23b8cf46a1965d0ec33459b875aed43187802834db49e0daa9fa2cc842e9d8d2",
+      "category": "compressed",
+      "source_url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/home.jpg",
+      "download": "home.jpg",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/jq-1.7.1.tar.gz",
+      "bytes": 1950645,
+      "sha256": "478c9ca129fd2e3443fe27314b455e211e0d8c60bc8ff7df703873deeee580c2",
+      "category": "compressed",
+      "source_url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz",
+      "download": "jq-1.7.1.tar.gz",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "compressed/typescript-5.6.3.tgz",
+      "bytes": 4174590,
+      "sha256": "ef67f8d8ad895858024b7339d3e34bf112cae3c5db1f538c3079038b17ae30fa",
+      "category": "compressed",
+      "source_url": "https://registry.npmjs.org/typescript/-/typescript-5.6.3.tgz",
+      "download": "typescript-5.6.3.tgz",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "executables/fzf-0.55.0-linux-amd64",
+      "bytes": 3760128,
+      "sha256": "bc96f0fa94b85b6b79ab84cdd2c173304c3f4621aa7e5fa97b7f713de77ba3f8",
+      "category": "executables",
+      "source_url": "https://github.com/junegunn/fzf/releases/download/v0.55.0/fzf-0.55.0-linux_amd64.tar.gz",
+      "download": "fzf-0.55.0-linux_amd64.tar.gz",
+      "derivation": "tar member fzf"
+    },
+    {
+      "path": "executables/jq-1.7.1-linux-amd64",
+      "bytes": 2319424,
+      "sha256": "5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5",
+      "category": "executables",
+      "source_url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64",
+      "download": "jq-linux-amd64",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "executables/jq-1.7.1-macos-arm64",
+      "bytes": 807984,
+      "sha256": "0bbe619e663e0de2c550be2fe0d240d076799d6f8a652b70fa04aea8a8362e8a",
+      "category": "executables",
+      "source_url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64",
+      "download": "jq-macos-arm64",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "executables/jq-1.7.1-windows-amd64.exe",
+      "bytes": 985088,
+      "sha256": "7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab",
+      "category": "executables",
+      "source_url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-windows-amd64.exe",
+      "download": "jq-windows-amd64.exe",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "executables/rg-14.1.1-aarch64-linux-gnu",
+      "bytes": 5233424,
+      "sha256": "e07d5c85fa9ca740ff4ab8bbac60a1e11c7a5ce242435f7820a03f7c20ef6276",
+      "category": "executables",
+      "source_url": "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-aarch64-unknown-linux-gnu.tar.gz",
+      "download": "ripgrep-14.1.1-aarch64-unknown-linux-gnu.tar.gz",
+      "derivation": "tar member ripgrep-14.1.1-aarch64-unknown-linux-gnu/rg"
+    },
+    {
+      "path": "executables/rg-14.1.1-x86_64-linux-musl",
+      "bytes": 6597984,
+      "sha256": "f401154e2393f9002ac77e419f9ee5521c18f4f8cd3e32293972f493ba06fce7",
+      "category": "executables",
+      "source_url": "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz",
+      "download": "ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz",
+      "derivation": "tar member ripgrep-14.1.1-x86_64-unknown-linux-musl/rg"
+    },
+    {
+      "path": "scientific/HorseHead.fits",
+      "bytes": 1650240,
+      "sha256": "c4bcc0bccbadf1488e4e361c0d8f04255dc344ff401fd4827139b3354eafe863",
+      "category": "scientific",
+      "source_url": "https://raw.githubusercontent.com/astropy/astropy-data/1b964d39b378390b24c58fb5633cef238d22a35a/tutorials/FITS-images/HorseHead.fits",
+      "download": "HorseHead.fits",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "scientific/air_temperature.nc",
+      "bytes": 7751328,
+      "sha256": "c606b89c35970a2983b914b76df4adbb409003ef34aa7cfd7f582e41f307482b",
+      "category": "scientific",
+      "source_url": "https://raw.githubusercontent.com/pydata/xarray-data/a35297e9da2cc99c811014f0c8a4297345a5c28d/air_temperature.nc",
+      "download": "air_temperature.nc",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "scientific/eraint_uvz.nc",
+      "bytes": 4168980,
+      "sha256": "8f4cd0f75418a8e8f8f957c3b007f49e68a58d1bdd0e028adeeb057889f635d2",
+      "category": "scientific",
+      "source_url": "https://raw.githubusercontent.com/pydata/xarray-data/a35297e9da2cc99c811014f0c8a4297345a5c28d/eraint_uvz.nc",
+      "download": "eraint_uvz.nc",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "scientific/imerghh_730.hdf5",
+      "bytes": 7728859,
+      "sha256": "b36764f671203c2cbf9334b6ec35f6be6078ee8faf64edf3c63f4ccfffbaa42e",
+      "category": "scientific",
+      "source_url": "https://raw.githubusercontent.com/pydata/xarray-data/a35297e9da2cc99c811014f0c8a4297345a5c28d/imerghh_730.hdf5",
+      "download": "imerghh_730.hdf5",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "scientific/l1448_13co.fits",
+      "bytes": 2341440,
+      "sha256": "de4d44cd2841d34cfe98915ab322f83e302f13b9599ef8629079249e53ad6d49",
+      "category": "scientific",
+      "source_url": "https://raw.githubusercontent.com/astropy/astropy-data/1b964d39b378390b24c58fb5633cef238d22a35a/l1448/l1448_13co.fits",
+      "download": "l1448_13co.fits",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "scientific/spitzer_example_image.fits",
+      "bytes": 2113920,
+      "sha256": "4b9cf15419de311fc683a9c378327a0b28bfee29d01e4fdbb9dc5780417f7ebc",
+      "category": "scientific",
+      "source_url": "https://raw.githubusercontent.com/astropy/astropy-data/1b964d39b378390b24c58fb5633cef238d22a35a/photometry/spitzer_example_image.fits",
+      "download": "spitzer_example_image.fits",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "source/curl-8.10.1.tar",
+      "bytes": 24023040,
+      "sha256": "1535c61b66811c025ab8f9fc5a815672aa200a60d11614a83e502bb72662a412",
+      "category": "source",
+      "source_url": "https://github.com/curl/curl/releases/download/curl-8_10_1/curl-8.10.1.tar.xz",
+      "download": "curl-8.10.1.tar.xz",
+      "derivation": "xz-decompressed release tarball"
+    },
+    {
+      "path": "source/pytest-8.3.3.tar",
+      "bytes": 7014400,
+      "sha256": "69de3cbd926fd7a356045e3547bf92885d81f75fa08afd253e208653432a3046",
+      "category": "source",
+      "source_url": "https://files.pythonhosted.org/packages/8b/6c/62bbd536103af674e227c41a8f3dcd022d591f6eed5facb5a0f31ee33bbc/pytest-8.3.3.tar.gz",
+      "download": "pytest-8.3.3.tar.gz",
+      "derivation": "gzip-decompressed sdist tarball"
+    },
+    {
+      "path": "structured/apache_access.log",
+      "bytes": 2370789,
+      "sha256": "f15c31e905f86c7b4b6ab44aee74d0a2086dce89f010187d983edea7ef0364ef",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/elastic/examples/6d86454ebb7a850bcd7e80abe86fe683370018a6/Common%20Data%20Formats/apache_logs/apache_logs",
+      "download": "apache_logs",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "structured/citm_catalog.json",
+      "bytes": 1727204,
+      "sha256": "a73e7a883f6ea8de113dff59702975e60119b4b58d451d518a929f31c92e2059",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/simdjson/simdjson/edb7016c62efbe6155226896cdba5736307190e3/jsonexamples/citm_catalog.json",
+      "download": "citm_catalog.json",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "structured/covid19_confirmed_US.csv",
+      "bytes": 17801222,
+      "sha256": "e8fe5837b1a7ce09e6187ef778bf69fdcfa9fcd7015b1ba597f248b0736d8cf3",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/4360e50239b4eb6b22f3a1759323748f36752177/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv",
+      "download": "time_series_covid19_confirmed_US.csv",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "structured/loghub-Android_2k.log",
+      "bytes": 279076,
+      "sha256": "47641549915e662ff590291df266a45f635eedca7c5f1b41a4fa853fe5d2f409",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/Android/Android_2k.log",
+      "download": "Android_2k.log",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "structured/loghub-HDFS_2k.log",
+      "bytes": 287848,
+      "sha256": "7c967000980c086ed55fa6544ba4f05fe66d44622795e890c68caf8bbb635035",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/HDFS/HDFS_2k.log",
+      "download": "HDFS_2k.log",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "structured/loghub-OpenSSH_2k.log",
+      "bytes": 225216,
+      "sha256": "1e4912727fa88245113d41b16a0cd25ceadba7f931e1c406542885b91254264f",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/OpenSSH/OpenSSH_2k.log",
+      "download": "OpenSSH_2k.log",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "structured/loghub-Windows_2k.log",
+      "bytes": 285433,
+      "sha256": "372fb809464a6d6016e599e9272d7cf1e8b644f25c90c7f76f19c936362456d0",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/Windows/Windows_2k.log",
+      "download": "Windows_2k.log",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "structured/nginx_json.log",
+      "bytes": 12137777,
+      "sha256": "05131a0ec5c40884fbf4a066f8a9244b6475ae6a5844b1f10fb38d42d8ff6967",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/elastic/examples/6d86454ebb7a850bcd7e80abe86fe683370018a6/Common%20Data%20Formats/nginx_json_logs/nginx_json_logs",
+      "download": "nginx_json_logs",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "structured/twitter.json",
+      "bytes": 631515,
+      "sha256": "30721e496a8d73cfc50658923c34eb2c0fbe15ee6835005e43ee624d8dedf200",
+      "category": "structured",
+      "source_url": "https://raw.githubusercontent.com/simdjson/simdjson/edb7016c62efbe6155226896cdba5736307190e3/jsonexamples/twitter.json",
+      "download": "twitter.json",
+      "derivation": "verbatim copy"
+    },
+    {
+      "path": "text/europarl-el.txt",
+      "bytes": 6614676,
+      "sha256": "66d2272e8ba3716330c87566521d6b3fa0344a509620d7eadabd07bbdd28cb0a",
+      "category": "text",
+      "source_url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/europarl_raw.zip",
+      "download": "europarl_raw.zip",
+      "derivation": "concatenation of every europarl_raw/greek/* member, C-locale sorted"
+    },
+    {
+      "path": "text/europarl-en.txt",
+      "bytes": 3060439,
+      "sha256": "c6bee1c0ea9bbcf7fc540e60cfff88ab3d44547f49bac05802691f99a8ff14a6",
+      "category": "text",
+      "source_url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/europarl_raw.zip",
+      "download": "europarl_raw.zip",
+      "derivation": "concatenation of every europarl_raw/english/* member, C-locale sorted"
+    },
+    {
+      "path": "text/gutenberg-12-books.txt",
+      "bytes": 6472607,
+      "sha256": "b1868eb20a5eb4b31e7e266559bfd7938c2a358d9fc057aa9f81076ff9d6a719",
+      "category": "text",
+      "source_url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/gutenberg.zip",
+      "download": "gutenberg.zip",
+      "derivation": "concatenation of gutenberg/{austen-emma,austen-persuasion,austen-sense,blake-poems,bryant-stories,burgess-busterbrown,chesterton-ball,chesterton-brown,chesterton-thursday,edgeworth-parents,melville-moby_dick,whitman-leaves}.txt in that order"
+    },
+    {
+      "path": "text/udhr2-all-languages.txt",
+      "bytes": 5677920,
+      "sha256": "ddfe82f25c0a487186c7ba64263d825125eb6c73a191393fb3c04c27f653f8d0",
+      "category": "text",
+      "source_url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/udhr2.zip",
+      "download": "udhr2.zip",
+      "derivation": "concatenation of every udhr2/*.txt member, C-locale sorted"
+    }
+  ],
+  "downloads": [
+    {
+      "name": "gutenberg.zip",
+      "sha256": "2d3c3ab548c653944310f37f536443ec85d0a0ad855fcae217a0c9efdce2d611",
+      "url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/gutenberg.zip"
+    },
+    {
+      "name": "europarl_raw.zip",
+      "sha256": "ad553e177baac263840c10980e6f3e76d5d15f7f7a078bd98520b36edb69b27c",
+      "url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/europarl_raw.zip"
+    },
+    {
+      "name": "udhr2.zip",
+      "sha256": "0796c314b09a930c989c6f9d93d226af9af13feccd88496e196c743dd266c7f3",
+      "url": "https://raw.githubusercontent.com/nltk/nltk_data/550b6625bcef1f2abff2ff770a5a0d272c9c6b2a/packages/corpora/udhr2.zip"
+    },
+    {
+      "name": "curl-8.10.1.tar.xz",
+      "sha256": "73a4b0e99596a09fa5924a4fb7e4b995a85fda0d18a2c02ab9cf134bebce04ee",
+      "url": "https://github.com/curl/curl/releases/download/curl-8_10_1/curl-8.10.1.tar.xz"
+    },
+    {
+      "name": "pytest-8.3.3.tar.gz",
+      "sha256": "70b98107bd648308a7952b06e6ca9a50bc660be218d53c257cc1fc94fda10181",
+      "url": "https://files.pythonhosted.org/packages/8b/6c/62bbd536103af674e227c41a8f3dcd022d591f6eed5facb5a0f31ee33bbc/pytest-8.3.3.tar.gz"
+    },
+    {
+      "name": "twitter.json",
+      "sha256": "30721e496a8d73cfc50658923c34eb2c0fbe15ee6835005e43ee624d8dedf200",
+      "url": "https://raw.githubusercontent.com/simdjson/simdjson/edb7016c62efbe6155226896cdba5736307190e3/jsonexamples/twitter.json"
+    },
+    {
+      "name": "citm_catalog.json",
+      "sha256": "a73e7a883f6ea8de113dff59702975e60119b4b58d451d518a929f31c92e2059",
+      "url": "https://raw.githubusercontent.com/simdjson/simdjson/edb7016c62efbe6155226896cdba5736307190e3/jsonexamples/citm_catalog.json"
+    },
+    {
+      "name": "time_series_covid19_confirmed_US.csv",
+      "sha256": "e8fe5837b1a7ce09e6187ef778bf69fdcfa9fcd7015b1ba597f248b0736d8cf3",
+      "url": "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/4360e50239b4eb6b22f3a1759323748f36752177/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv"
+    },
+    {
+      "name": "apache_logs",
+      "sha256": "f15c31e905f86c7b4b6ab44aee74d0a2086dce89f010187d983edea7ef0364ef",
+      "url": "https://raw.githubusercontent.com/elastic/examples/6d86454ebb7a850bcd7e80abe86fe683370018a6/Common%20Data%20Formats/apache_logs/apache_logs"
+    },
+    {
+      "name": "nginx_json_logs",
+      "sha256": "05131a0ec5c40884fbf4a066f8a9244b6475ae6a5844b1f10fb38d42d8ff6967",
+      "url": "https://raw.githubusercontent.com/elastic/examples/6d86454ebb7a850bcd7e80abe86fe683370018a6/Common%20Data%20Formats/nginx_json_logs/nginx_json_logs"
+    },
+    {
+      "name": "Android_2k.log",
+      "sha256": "47641549915e662ff590291df266a45f635eedca7c5f1b41a4fa853fe5d2f409",
+      "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/Android/Android_2k.log"
+    },
+    {
+      "name": "HDFS_2k.log",
+      "sha256": "7c967000980c086ed55fa6544ba4f05fe66d44622795e890c68caf8bbb635035",
+      "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/HDFS/HDFS_2k.log"
+    },
+    {
+      "name": "OpenSSH_2k.log",
+      "sha256": "1e4912727fa88245113d41b16a0cd25ceadba7f931e1c406542885b91254264f",
+      "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/OpenSSH/OpenSSH_2k.log"
+    },
+    {
+      "name": "Windows_2k.log",
+      "sha256": "372fb809464a6d6016e599e9272d7cf1e8b644f25c90c7f76f19c936362456d0",
+      "url": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/Windows/Windows_2k.log"
+    },
+    {
+      "name": "ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz",
+      "sha256": "4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e",
+      "url": "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz"
+    },
+    {
+      "name": "ripgrep-14.1.1-aarch64-unknown-linux-gnu.tar.gz",
+      "sha256": "c827481c4ff4ea10c9dc7a4022c8de5db34a5737cb74484d62eb94a95841ab2f",
+      "url": "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-aarch64-unknown-linux-gnu.tar.gz"
+    },
+    {
+      "name": "jq-linux-amd64",
+      "sha256": "5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5",
+      "url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64"
+    },
+    {
+      "name": "jq-windows-amd64.exe",
+      "sha256": "7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab",
+      "url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-windows-amd64.exe"
+    },
+    {
+      "name": "jq-macos-arm64",
+      "sha256": "0bbe619e663e0de2c550be2fe0d240d076799d6f8a652b70fa04aea8a8362e8a",
+      "url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64"
+    },
+    {
+      "name": "fzf-0.55.0-linux_amd64.tar.gz",
+      "sha256": "4df2393776942780ddab2cea713ddaac06cd5c3886cd23bc9119a6d3aa1e02bd",
+      "url": "https://github.com/junegunn/fzf/releases/download/v0.55.0/fzf-0.55.0-linux_amd64.tar.gz"
+    },
+    {
+      "name": "air_temperature.nc",
+      "sha256": "c606b89c35970a2983b914b76df4adbb409003ef34aa7cfd7f582e41f307482b",
+      "url": "https://raw.githubusercontent.com/pydata/xarray-data/a35297e9da2cc99c811014f0c8a4297345a5c28d/air_temperature.nc"
+    },
+    {
+      "name": "eraint_uvz.nc",
+      "sha256": "8f4cd0f75418a8e8f8f957c3b007f49e68a58d1bdd0e028adeeb057889f635d2",
+      "url": "https://raw.githubusercontent.com/pydata/xarray-data/a35297e9da2cc99c811014f0c8a4297345a5c28d/eraint_uvz.nc"
+    },
+    {
+      "name": "imerghh_730.hdf5",
+      "sha256": "b36764f671203c2cbf9334b6ec35f6be6078ee8faf64edf3c63f4ccfffbaa42e",
+      "url": "https://raw.githubusercontent.com/pydata/xarray-data/a35297e9da2cc99c811014f0c8a4297345a5c28d/imerghh_730.hdf5"
+    },
+    {
+      "name": "HorseHead.fits",
+      "sha256": "c4bcc0bccbadf1488e4e361c0d8f04255dc344ff401fd4827139b3354eafe863",
+      "url": "https://raw.githubusercontent.com/astropy/astropy-data/1b964d39b378390b24c58fb5633cef238d22a35a/tutorials/FITS-images/HorseHead.fits"
+    },
+    {
+      "name": "spitzer_example_image.fits",
+      "sha256": "4b9cf15419de311fc683a9c378327a0b28bfee29d01e4fdbb9dc5780417f7ebc",
+      "url": "https://raw.githubusercontent.com/astropy/astropy-data/1b964d39b378390b24c58fb5633cef238d22a35a/photometry/spitzer_example_image.fits"
+    },
+    {
+      "name": "l1448_13co.fits",
+      "sha256": "de4d44cd2841d34cfe98915ab322f83e302f13b9599ef8629079249e53ad6d49",
+      "url": "https://raw.githubusercontent.com/astropy/astropy-data/1b964d39b378390b24c58fb5633cef238d22a35a/l1448/l1448_13co.fits"
+    },
+    {
+      "name": "fruits.jpg",
+      "sha256": "9c031d80a1c52da5eca790db896baffec6a7e52bf786cdb7bbfca5c7f880e6a1",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/fruits.jpg"
+    },
+    {
+      "name": "building.jpg",
+      "sha256": "742a1baad62ac82e91e718e77eedf7e85c2eddc4badfb8c87c6cbc86c45a8b07",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/building.jpg"
+    },
+    {
+      "name": "HappyFish.jpg",
+      "sha256": "ade5b67347d7f89b1539c93843f3f7178782a7e34eb1fe586f4a785c3e60a432",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/HappyFish.jpg"
+    },
+    {
+      "name": "home.jpg",
+      "sha256": "23b8cf46a1965d0ec33459b875aed43187802834db49e0daa9fa2cc842e9d8d2",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/home.jpg"
+    },
+    {
+      "name": "graf1.png",
+      "sha256": "1504b769303c7bde00fa578eeaad3c68e02aceabeb1242e556f1f8d19e4bdea5",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/graf1.png"
+    },
+    {
+      "name": "basketball1.png",
+      "sha256": "ba06f6701f7260998b430c39b6557f775497e6ce7b1a74f0b7ea6af371bf54a6",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/basketball1.png"
+    },
+    {
+      "name": "box_in_scene.png",
+      "sha256": "8b0225ff76244a42bd1400c0904f8b7afea7d97b7d8115495e42e98ad347bd51",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/a9ea97659a120ac23d2219dfc819deb9f4082416/samples/data/box_in_scene.png"
+    },
+    {
+      "name": "guava-33.3.1-jre.jar",
+      "sha256": "4bf0e2c5af8e4525c96e8fde17a4f7307f97f8478f11c4c8e35a0e3298ae4e90",
+      "url": "https://repo1.maven.org/maven2/com/google/guava/guava/33.3.1-jre/guava-33.3.1-jre.jar"
+    },
+    {
+      "name": "typescript-5.6.3.tgz",
+      "sha256": "ef67f8d8ad895858024b7339d3e34bf112cae3c5db1f538c3079038b17ae30fa",
+      "url": "https://registry.npmjs.org/typescript/-/typescript-5.6.3.tgz"
+    },
+    {
+      "name": "jq-1.7.1.tar.gz",
+      "sha256": "478c9ca129fd2e3443fe27314b455e211e0d8c60bc8ff7df703873deeee580c2",
+      "url": "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz"
+    }
+  ]
+}
