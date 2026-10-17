@@ -144,7 +144,7 @@ CODECS = [
 
 def version(executable: str) -> str:
     for flag in ("--version", "-V"):
-        result = subprocess.run([executable, flag], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        result = subprocess.run([executable, flag], text=True, errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip().splitlines()[0]
     return "version unavailable"
@@ -153,13 +153,13 @@ def version(executable: str) -> str:
 def codec_version(codec: Codec) -> str:
     if not codec.version_command:
         return version(codec.executable)
-    result = subprocess.run(codec.version_command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = subprocess.run(codec.version_command, text=True, errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     return lines[0] if lines else "version unavailable"
 
 
 def gnu_time() -> bool:
-    result = subprocess.run([TIME, "--version"], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = subprocess.run([TIME, "--version"], text=True, errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return result.returncode == 0 and "GNU" in result.stdout
 
 
