@@ -551,12 +551,13 @@ static Bwt3Model *bwt3_model_new(size_t block_size) {
     for (size_t i = 0; i < 256u * BWT3_INPUTS; ++i) m->flag_weights[i] = 1 << 14;
     for (size_t i = 0; i < (256u + 16u) * BWT3_INPUTS; ++i) m->weights[i] = 1 << 14;
     for (size_t i = 0; i < 256u * 2u; ++i) m->final_weights[i] = 1 << 15;
-    for (unsigned j = 0; j < 33; ++j) {
-        uint16_t value = (uint16_t)(bwt2_squash(((int)j - 16) * 128) * 16);
-        for (unsigned c = 0; c < 256; ++c)
-            m->flag_apm[c * 33u + j] = m->apm_order0[c * 33u + j] = value;
-        for (unsigned c = 0; c < 65536; ++c) m->apm_order1[c * 33u + j] = value;
+    uint16_t row[33];
+    for (unsigned j = 0; j < 33; ++j) row[j] = (uint16_t)(bwt2_squash(((int)j - 16) * 128) * 16);
+    for (unsigned c = 0; c < 256; ++c) {
+        memcpy(&m->flag_apm[c * 33u], row, sizeof(row));
+        memcpy(&m->apm_order0[c * 33u], row, sizeof(row));
     }
+    for (unsigned c = 0; c < 65536; ++c) memcpy(&m->apm_order1[c * 33u], row, sizeof(row));
     int next = 0;
     for (int x = -2047; x <= 2047; ++x) {
         int v = bwt2_squash(x);
