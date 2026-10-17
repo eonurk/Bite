@@ -76,10 +76,14 @@ def main():
     decisions = {int(r["experiment_id"][4:]): r["decision"]
                  for r in csv.DictReader((ROOT / "experiments.csv").open())}
     points, parents = research_points()
+    # Reference runs measure other codecs; their Bite rows are not experiment results.
+    points = {n: v for n, v in points.items() if decisions.get(n) != "REFERENCE_TARGET"}
     references = {r["codec"]: int(r["compressed_size_bytes"])
                   for r in csv.DictReader((ROOT / REFERENCE_DIR / "summary.csv").open())}
-    sample_only = sorted(n for n, d in decisions.items()
-                         if n > min(points) and n not in points and d != "REFERENCE_TARGET")
+    # Only experiments whose sole evidence is a sample or targeted screen.
+    screened = {int(d.name[4:8]) for d in ROOT.glob("results/exp-*")
+                if "sample" in d.name or "target" in d.name}
+    sample_only = sorted(n for n in screened if n > min(points) and n not in points)
 
     out_dir = ROOT / "docs"
     out_dir.mkdir(exist_ok=True)
@@ -138,8 +142,9 @@ def main():
         ax.scatter([], [], facecolors=t["surface"], edgecolors=t["kept"], linewidths=1.6, s=44,
                    label="Kept for speed or memory")
         ax.scatter([], [], color=t["rejected"], s=36, edgecolor=t["surface"], label="Rejected")
-        ax.scatter([], [], color=t["pending"], s=64, edgecolor=t["surface"],
-                   label="Not yet validated")
+        if any(x not in decisions for x in xs):
+            ax.scatter([], [], color=t["pending"], s=64, edgecolor=t["surface"],
+                       label="Not yet validated")
         ax.scatter([], [], marker="|", s=90, lw=1.6, color=t["rejected"],
                    label="Screened on a sample only")
         legend = ax.legend(loc="upper right", frameon=False, fontsize=8.5, labelcolor=t["text"])

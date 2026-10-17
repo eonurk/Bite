@@ -6,7 +6,7 @@ against its parent, and only exact, measured improvements are kept.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/progress-dark.png">
-  <img alt="Research-corpus bits per byte by experiment: kept improvements step down from 2.50 to 1.94, past zstd -19 and xz -9e; the unvalidated EXP-0075 BWT candidate reaches 1.88, below Brotli 11" src="docs/progress-light.png">
+  <img alt="Research-corpus bits per byte by experiment: kept improvements step down from 2.50 to 1.94, past zstd -19 and xz -9e, and EXP-0075 adds a BWT candidate that reaches 1.88, below Brotli 11" src="docs/progress-light.png">
 </picture>
 
 ## Results
