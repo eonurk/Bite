@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309L
 #define BITE_NO_MAIN
 #include "bite.c"
 

@@ -1,0 +1,18 @@
+bib bite=1.9ms zstd-19=2.9ms xz-9e=3.5ms brotli-11=2.4ms
+book1 bite=3.7ms zstd-19=7.1ms xz-9e=17.2ms brotli-11=5.5ms
+book2 bite=2.9ms zstd-19=4.3ms xz-9e=12.6ms brotli-11=4.2ms
+geo bite=2.2ms zstd-19=2.7ms xz-9e=5.6ms brotli-11=2.8ms
+news bite=2.7ms zstd-19=4.3ms xz-9e=16.0ms brotli-11=4.0ms
+obj1 bite=1.5ms zstd-19=2.4ms xz-9e=2.6ms brotli-11=1.7ms
+obj2 bite=2.1ms zstd-19=3.0ms xz-9e=5.7ms brotli-11=3.4ms
+paper1 bite=1.4ms zstd-19=2.1ms xz-9e=2.4ms brotli-11=2.0ms
+paper2 bite=2.2ms zstd-19=2.3ms xz-9e=3.2ms brotli-11=2.1ms
+progc bite=1.4ms zstd-19=2.0ms xz-9e=2.4ms brotli-11=1.9ms
+progl bite=1.6ms zstd-19=2.4ms xz-9e=2.4ms brotli-11=1.7ms
+progp bite=1.3ms zstd-19=2.0ms xz-9e=2.0ms brotli-11=1.9ms
+trans bite=1.5ms zstd-19=2.0ms xz-9e=3.3ms brotli-11=2.4ms
+E.coli bite=38.6ms zstd-19=14.4ms xz-9e=56.6ms brotli-11=24.5ms
+bible.txt bite=10.6ms zstd-19=12.8ms xz-9e=44.3ms brotli-11=13.2ms
+world192.txt bite=6.9ms zstd-19=7.7ms xz-9e=27.3ms brotli-11=9.9ms
+TOTAL bite=0.0826s zstd-19=0.0745s xz-9e=0.2071s brotli-11=0.0834s bite/zstd=1.11
+DONE

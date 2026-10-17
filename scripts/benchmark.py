@@ -178,6 +178,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", choices=("screen", "validate", "audit"), default="audit")
     parser.add_argument("--repeats", type=int)
+    parser.add_argument("--decode-repeats", type=int, default=1,
+                        help="timed decodes after each encode; the median covers all of them")
     parser.add_argument("--codecs", nargs="*", help="optional codec-name subset")
     parser.add_argument("--label", default="baseline")
     parser.add_argument("--corpus-dir", type=Path, default=ROOT / "corpus" / "dev",
@@ -192,7 +194,7 @@ def main() -> None:
     excluded = tuple(args.aggregate_exclude)
     if args.repeats is None:
         args.repeats = {"screen": 1, "validate": 3, "audit": 3}[args.stage]
-    if args.repeats < 1:
+    if args.repeats < 1 or args.decode_repeats < 1:
         raise SystemExit("repeats must be positive")
     if args.stage != "audit" and not args.codecs:
         raise SystemExit(f"--stage {args.stage} requires --codecs CANDIDATE PARENT [...]")
@@ -261,6 +263,7 @@ def main() -> None:
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "stage": args.stage,
         "repeats": args.repeats,
+        "decode_repeats": args.decode_repeats,
         "platform": platform,
         "platform_compat": compatible_platform(platform),
         "git_head": git_head,
@@ -292,10 +295,12 @@ def main() -> None:
                     elapsed, rss = run_timed(c_cmd, None if codec.file_output else encoded)
                     encode_times.append(elapsed); encode_rss.append(rss); compressed_sizes.append(encoded.stat().st_size)
                     d_cmd = command(codec, codec.decompress, encoded, decoded)
-                    elapsed, rss = run_timed(d_cmd, None if codec.file_output else decoded)
-                    decode_times.append(elapsed); decode_rss.append(rss)
-                    if source.stat().st_size != decoded.stat().st_size or source_digests[source] != digest(decoded):
-                        raise RuntimeError(f"LOSSLESS FAILURE: {codec.name} on {source}")
+                    for _ in range(args.decode_repeats):
+                        decoded.unlink(missing_ok=True)
+                        elapsed, rss = run_timed(d_cmd, None if codec.file_output else decoded)
+                        decode_times.append(elapsed); decode_rss.append(rss)
+                        if source.stat().st_size != decoded.stat().st_size or source_digests[source] != digest(decoded):
+                            raise RuntimeError(f"LOSSLESS FAILURE: {codec.name} on {source}")
                 if len(set(compressed_sizes)) != 1:
                     raise RuntimeError(f"nondeterministic compressed size: {codec.name} on {source}")
                 size = source.stat().st_size

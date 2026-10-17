@@ -1,0 +1,1 @@
+mode-27 malformed-stream tests passed: 1297 rejected, 992 corruptions decoded (no checksum) without fault
