@@ -11,6 +11,7 @@ import re
 import shutil
 import statistics
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -18,6 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TIME = "/usr/bin/time"
+# BSD time (macOS) reports peak RSS in bytes with -l; GNU time uses -v and KiB.
+TIME_FLAG = "-l" if sys.platform == "darwin" else "-v"
 BENCHMARK_SCHEMA = 1
 
 # Files measured and round-trip checked per file, but kept out of the corpus
@@ -115,7 +118,7 @@ def run_timed(command: list[str], stdout_path: Path | None) -> tuple[float, int]
     started = time.perf_counter()
     stdout = open(stdout_path, "wb") if stdout_path else subprocess.DEVNULL
     try:
-        result = subprocess.run([TIME, "-l", *command], stdout=stdout, stderr=subprocess.PIPE, text=False)
+        result = subprocess.run([TIME, TIME_FLAG, *command], stdout=stdout, stderr=subprocess.PIPE, text=False)
     finally:
         if stdout_path:
             stdout.close()
@@ -123,8 +126,11 @@ def run_timed(command: list[str], stdout_path: Path | None) -> tuple[float, int]
     stderr = result.stderr.decode(errors="replace")
     if result.returncode != 0:
         raise RuntimeError(f"command failed ({result.returncode}): {' '.join(command)}\n{stderr}")
-    match = re.search(r"(\d+)\s+maximum resident set size", stderr)
-    return elapsed, int(match.group(1)) if match else 0
+    if TIME_FLAG == "-l":
+        match = re.search(r"(\d+)\s+maximum resident set size", stderr)
+        return elapsed, int(match.group(1)) if match else 0
+    match = re.search(r"Maximum resident set size \(kbytes\): (\d+)", stderr)
+    return elapsed, 1024 * int(match.group(1)) if match else 0
 
 
 def command(codec: Codec, template: tuple[str, ...], source: Path, destination: Path) -> list[str]:

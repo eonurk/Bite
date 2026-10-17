@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """EXP-0078 focused tests: `cdec` round trips and malformed mode-27 streams.
 
-Every corruption must either decode to exactly some output (bit flips can be
-benign) or exit with status 1 through `fail()`; a signal or sanitizer report
-(any other status, or stderr mentioning a sanitizer) is a test failure.
+Truncations must be rejected. Other corruptions must either decode (mode 27
+carries no checksum, so a flipped bit in a near-uniform tANS stream can yield
+different bytes, as with zstd without --check) or exit with status 1 through
+`fail()`; a signal or sanitizer report is a test failure.
 """
 
 import argparse
@@ -115,7 +116,7 @@ def main() -> None:
             damaged[start:start + 1] = b"\xff\xff\xff\xff\x0f"
             check_rejected_or_clean(args.binary, bytes(damaged), temp, f"{name} huge count")
     print(f"mode-27 malformed-stream tests passed: {rejected} rejected, "
-          f"{decoded} benign corruptions decoded without fault")
+          f"{decoded} corruptions decoded (no checksum) without fault")
 
 
 if __name__ == "__main__":

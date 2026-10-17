@@ -1,0 +1,183 @@
+DONE
+IDENT-OK c corpus/dev/canterbury/fields.c
+IDENT-OK c corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK c corpus/research/calgary/progc
+IDENT-OK cb corpus/dev/canterbury/fields.c
+IDENT-OK cb corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK cb corpus/research/calgary/progc
+IDENT-OK cbh corpus/dev/canterbury/fields.c
+IDENT-OK cbh corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK cbh corpus/research/calgary/progc
+IDENT-OK cblink corpus/dev/canterbury/fields.c
+IDENT-OK cblink corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK cblink corpus/research/calgary/progc
+IDENT-OK cbwt corpus/dev/canterbury/alice29.txt
+IDENT-OK cbwt corpus/dev/canterbury/fields.c
+IDENT-OK cbwt corpus/dev/canterbury/sum
+IDENT-OK cbwt corpus/dev/generated/small_files/small_0000.bin
+IDENT-OK cbwt corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK cbwt corpus/research/calgary/geo
+IDENT-OK cbwt corpus/research/calgary/obj1
+IDENT-OK cbwt corpus/research/calgary/paper1
+IDENT-OK cbwt corpus/research/calgary/progc
+IDENT-OK cbwt corpus/research/calgary/trans
+IDENT-OK cfast corpus/dev/canterbury/alice29.txt
+IDENT-OK cfast corpus/dev/canterbury/fields.c
+IDENT-OK cfast corpus/dev/canterbury/sum
+IDENT-OK cfast corpus/dev/generated/small_files/small_0000.bin
+IDENT-OK cfast corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK cfast corpus/research/calgary/geo
+IDENT-OK cfast corpus/research/calgary/obj1
+IDENT-OK cfast corpus/research/calgary/paper1
+IDENT-OK cfast corpus/research/calgary/progc
+IDENT-OK cfast corpus/research/calgary/trans
+IDENT-OK cl corpus/dev/canterbury/fields.c
+IDENT-OK cl corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK cl corpus/research/calgary/progc
+IDENT-OK clb corpus/dev/canterbury/fields.c
+IDENT-OK clb corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clb corpus/research/calgary/progc
+IDENT-OK clbh corpus/dev/canterbury/fields.c
+IDENT-OK clbh corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clbh corpus/research/calgary/progc
+IDENT-OK clblinkh corpus/dev/canterbury/fields.c
+IDENT-OK clblinkh corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clblinkh corpus/research/calgary/progc
+IDENT-OK clblinks corpus/dev/canterbury/fields.c
+IDENT-OK clblinks corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clblinks corpus/research/calgary/progc
+IDENT-OK clblinksopt2 corpus/dev/canterbury/fields.c
+IDENT-OK clblinksopt2 corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clblinksopt2 corpus/research/calgary/progc
+IDENT-OK clblinksopt2dfsbw corpus/dev/canterbury/fields.c
+IDENT-OK clblinksopt2dfsbw corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clblinksopt2dfsbw corpus/research/calgary/progc
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcr corpus/dev/canterbury/fields.c
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcr corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcr corpus/research/calgary/progc
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcra4 corpus/dev/canterbury/fields.c
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcra4 corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcra4 corpus/research/calgary/progc
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcra4f corpus/dev/canterbury/fields.c
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcra4f corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK clblinksopt2dfsbwasp2b16x2tdlmmdcra4f corpus/research/calgary/progc
+IDENT-OK cmax corpus/dev/canterbury/alice29.txt
+IDENT-OK cmax corpus/dev/canterbury/fields.c
+IDENT-OK cmax corpus/dev/canterbury/sum
+IDENT-OK cmax corpus/dev/generated/small_files/small_0000.bin
+IDENT-OK cmax corpus/dev/generated/small_files/small_0103.bin
+IDENT-OK cmax corpus/research/calgary/geo
+IDENT-OK cmax corpus/research/calgary/obj1
+IDENT-OK cmax corpus/research/calgary/paper1
+IDENT-OK cmax corpus/research/calgary/progc
+IDENT-OK cmax corpus/research/calgary/trans
+RT-OK cbwt corpus/dev/canterbury/alice29.txt 48544
+RT-OK cbwt corpus/dev/canterbury/asyoulik.txt 44701
+RT-OK cbwt corpus/dev/canterbury/cp.html 9430
+RT-OK cbwt corpus/dev/canterbury/fields.c 4019
+RT-OK cbwt corpus/dev/canterbury/grammar.lsp 1767
+RT-OK cbwt corpus/dev/canterbury/kennedy.xls 95704
+RT-OK cbwt corpus/dev/canterbury/lcet10.txt 118335
+RT-OK cbwt corpus/dev/canterbury/plrabn12.txt 157778
+RT-OK cbwt corpus/dev/canterbury/ptt5 56833
+RT-OK cbwt corpus/dev/canterbury/sum 14781
+RT-OK cbwt corpus/dev/canterbury/xargs.1 2371
+RT-OK cbwt corpus/dev/generated/binary_data/random.bin 524313
+RT-OK cbwt corpus/dev/generated/executables/pseudo_text.bin 74146
+RT-OK cbwt corpus/dev/generated/images_raw/gradient.rgb 1163952
+RT-OK cbwt corpus/dev/generated/json/events.json 109294
+RT-OK cbwt corpus/dev/generated/mixed/records.bin 35627
+RT-OK cbwt corpus/dev/generated/scientific_data/readings.f64 786325
+RT-OK cbwt corpus/dev/generated/small_files/small_0000.bin 16
+RT-OK cbwt corpus/dev/generated/small_files/small_0001.bin 26
+RT-OK cbwt corpus/dev/generated/small_files/small_0017.bin 42
+RT-OK cbwt corpus/dev/generated/small_files/small_0103.bin 128
+RT-OK cbwt corpus/dev/generated/small_files/small_1024.bin 623
+RT-OK cbwt corpus/dev/generated/small_files/small_4096.bin 623
+RT-OK cbwt corpus/dev/generated/source_code/generated.c 41716
+RT-OK cbwt corpus/dev/generated/text/research_notes.txt 15109
+RT-OK cbwt corpus/dev/generated/xml/catalog.xml 56141
+RT-OK cbwt corpus/research/calgary/bib 31656
+RT-OK cbwt corpus/research/calgary/book1 249106
+RT-OK cbwt corpus/research/calgary/book2 171005
+RT-OK cbwt corpus/research/calgary/geo 60670
+RT-OK cbwt corpus/research/calgary/news 129811
+RT-OK cbwt corpus/research/calgary/obj1 11849
+RT-OK cbwt corpus/research/calgary/obj2 83222
+RT-OK cbwt corpus/research/calgary/paper1 19569
+RT-OK cbwt corpus/research/calgary/paper2 28866
+RT-OK cbwt corpus/research/calgary/progc 15054
+RT-OK cbwt corpus/research/calgary/progl 18776
+RT-OK cbwt corpus/research/calgary/progp 13230
+RT-OK cbwt corpus/research/calgary/trans 21357
+RT-OK cbwt corpus/research/large/E.coli 1213519
+RT-OK cbwt corpus/research/large/bible.txt 848793
+RT-OK cbwt corpus/research/large/world192.txt 456895
+RT-OK cdec corpus/dev/canterbury/alice29.txt 48214
+RT-OK cdec corpus/dev/canterbury/asyoulik.txt 44200
+RT-OK cdec corpus/dev/canterbury/cp.html 7522
+RT-OK cdec corpus/dev/canterbury/fields.c 3030
+RT-OK cdec corpus/dev/canterbury/grammar.lsp 1228
+RT-OK cdec corpus/dev/canterbury/kennedy.xls 108632
+RT-OK cdec corpus/dev/canterbury/lcet10.txt 119396
+RT-OK cdec corpus/dev/canterbury/plrabn12.txt 166533
+RT-OK cdec corpus/dev/canterbury/ptt5 40725
+RT-OK cdec corpus/dev/canterbury/sum 11755
+RT-OK cdec corpus/dev/canterbury/xargs.1 1749
+RT-OK cdec corpus/dev/generated/binary_data/random.bin 524313
+RT-OK cdec corpus/dev/generated/executables/pseudo_text.bin 145321
+RT-OK cdec corpus/dev/generated/images_raw/gradient.rgb 1171895
+RT-OK cdec corpus/dev/generated/json/events.json 98618
+RT-OK cdec corpus/dev/generated/mixed/records.bin 34667
+RT-OK cdec corpus/dev/generated/scientific_data/readings.f64 729721
+RT-OK cdec corpus/dev/generated/small_files/small_0000.bin 16
+RT-OK cdec corpus/dev/generated/small_files/small_0001.bin 26
+RT-OK cdec corpus/dev/generated/small_files/small_0017.bin 42
+RT-OK cdec corpus/dev/generated/small_files/small_0103.bin 128
+RT-OK cdec corpus/dev/generated/small_files/small_1024.bin 305
+RT-OK cdec corpus/dev/generated/small_files/small_4096.bin 305
+RT-OK cdec corpus/dev/generated/source_code/generated.c 39911
+RT-OK cdec corpus/dev/generated/text/research_notes.txt 16414
+RT-OK cdec corpus/dev/generated/xml/catalog.xml 48226
+RT-OK cmax corpus/dev/canterbury/alice29.txt 48544
+RT-OK cmax corpus/dev/canterbury/asyoulik.txt 44701
+RT-OK cmax corpus/dev/canterbury/cp.html 7825
+RT-OK cmax corpus/dev/canterbury/fields.c 3163
+RT-OK cmax corpus/dev/canterbury/grammar.lsp 1362
+RT-OK cmax corpus/dev/canterbury/kennedy.xls 73371
+RT-OK cmax corpus/dev/canterbury/lcet10.txt 118335
+RT-OK cmax corpus/dev/canterbury/plrabn12.txt 157778
+RT-OK cmax corpus/dev/canterbury/ptt5 43953
+RT-OK cmax corpus/dev/canterbury/sum 11670
+RT-OK cmax corpus/dev/canterbury/xargs.1 1874
+RT-OK cmax corpus/dev/generated/binary_data/random.bin 524313
+RT-OK cmax corpus/dev/generated/executables/pseudo_text.bin 74146
+RT-OK cmax corpus/dev/generated/images_raw/gradient.rgb 189
+RT-OK cmax corpus/dev/generated/json/events.json 79944
+RT-OK cmax corpus/dev/generated/mixed/records.bin 34866
+RT-OK cmax corpus/dev/generated/scientific_data/readings.f64 623763
+RT-OK cmax corpus/dev/generated/small_files/small_0000.bin 16
+RT-OK cmax corpus/dev/generated/small_files/small_0001.bin 26
+RT-OK cmax corpus/dev/generated/small_files/small_0017.bin 42
+RT-OK cmax corpus/dev/generated/small_files/small_0103.bin 88
+RT-OK cmax corpus/dev/generated/small_files/small_1024.bin 90
+RT-OK cmax corpus/dev/generated/small_files/small_4096.bin 94
+RT-OK cmax corpus/dev/generated/source_code/generated.c 30668
+RT-OK cmax corpus/dev/generated/text/research_notes.txt 11721
+RT-OK cmax corpus/dev/generated/xml/catalog.xml 50395
+RT-OK cmax corpus/research/calgary/bib 31146
+RT-OK cmax corpus/research/calgary/book1 249106
+RT-OK cmax corpus/research/calgary/book2 171005
+RT-OK cmax corpus/research/calgary/geo 60569
+RT-OK cmax corpus/research/calgary/news 120510
+RT-OK cmax corpus/research/calgary/obj1 10089
+RT-OK cmax corpus/research/calgary/obj2 70690
+RT-OK cmax corpus/research/calgary/paper1 17590
+RT-OK cmax corpus/research/calgary/paper2 27503
+RT-OK cmax corpus/research/calgary/progc 12919
+RT-OK cmax corpus/research/calgary/progl 15263
+RT-OK cmax corpus/research/calgary/progp 10679
+RT-OK cmax corpus/research/calgary/trans 17251
+RT-OK cmax corpus/research/large/E.coli 1127219
+RT-OK cmax corpus/research/large/bible.txt 848793
+RT-OK cmax corpus/research/large/world192.txt 456895

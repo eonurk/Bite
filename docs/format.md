@@ -133,3 +133,41 @@ mode 25. `cbwt` isolates the new path for experiments. The implementation is
 self-contained C; the established block-sorting approach is also described in
 the [bzip2 documentation](https://www.sourceware.org/bzip2/manual/manual.html).
 This is a complementary representation in Bite, not a claim of inventing BWT.
+
+## Mode 27: fast-decode static tANS (EXP-0078)
+
+EXP-0078 adds block mode 27, selected only by the `cdec` preset
+(`compress_linked_blocked` id 37). It shares the wide 16 MiB-window match index
+with the other wide modes, and matches may reference any earlier decoded
+block. The payload is:
+
+```
+varint literal_count, varint sequence_count
+u8     literal_mode        0 raw, 1 order-0 tANS x4, 2 context tANS
+varint literal_section_size, literal section
+sequence tables (LL, ML, OF; forward bit-packed), backward sequence bitstream
+```
+
+A sequence is (literal length, match length - 4, offset). Lengths use 16/32
+direct codes, then two codes per power of two plus raw extra bits. Offset
+codes 0–3 select a move-to-front cache of four recent distances, initialised
+to 1, 4, 8 and 16 per block. Codes 4 and above give `distance - 1` with four
+direct codes and the same bucketing. The three code states share one backward
+bitstream, and each sequence reads at most 56 bits between two refills.
+
+Each tANS table is described by its log (5–12), its last symbol, an
+Exp-Golomb parameter, and Golomb-coded normalized counts with zero runs; the
+last count is implied. Literal mode 1 codes four equal literal quarters as
+four independent streams. Literal mode 2 stores an order (1–6) and a 256-bit
+byte-presence map that defines dense ranks. The context key packs the ranks
+of the preceding `order` bytes (zero before the start of the file) into at
+most 12 bits. A key-to-table map selects one of up to 64 rank-coded tables,
+which share one log, so a single state carries across table switches. The
+encoder clusters key histograms and picks the order and literal mode by
+exact encoded size.
+
+Every backward stream ends in a marker bit and is at least 8 bytes long.
+Decoding validates table sums, symbol ranges, final states (all zero), exact
+stream consumption, literal and output bounds, and distances against the
+decoded history. Copies use 16-byte wild copies into 32 bytes of slack.
+Older decoders do not support mode 27.
