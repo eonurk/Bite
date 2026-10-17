@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Validated compression, speed, memory, and correctness results for the Bite lossless compression research codec.">
+<title>Bite · validation report</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --page: light-dark(#f4f4ef, #10110f);
+    --surface: light-dark(#fbfbf7, #191b18);
+    --raised: light-dark(#ffffff, #20231f);
+    --ink: light-dark(#161713, #f4f5ef);
+    --ink-2: light-dark(#55584e, #b8bcb0);
+    --muted: light-dark(#7c8074, #898e82);
+    --line: light-dark(#d9dbd2, #32362f);
+    --track: light-dark(#e6e8e0, #292c27);
+    --bite: #76dd8d;
+    --bite-ink: light-dark(#17672b, #8eed9f);
+    --xz: light-dark(#6f778b, #8f9aaf);
+    --warn: light-dark(#a74231, #f08a78);
+    --blue: light-dark(#356cd6, #79a8ff);
+    --shadow: 0 16px 45px light-dark(rgba(25,28,21,.07), rgba(0,0,0,.25));
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--bite) 10%, transparent), transparent 34rem),
+      var(--page);
+    color: var(--ink);
+    font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .num { font-variant-numeric: tabular-nums; }
+  main { width: min(1160px, calc(100% - 32px)); margin: 0 auto; padding: 54px 0 70px; }
+  .eyebrow {
+    margin: 0 0 13px; color: var(--bite-ink); font-size: 11px; font-weight: 750;
+    letter-spacing: .13em; text-transform: uppercase;
+  }
+  h1 { margin: 0; max-width: 850px; font-size: clamp(35px, 6vw, 68px); line-height: 1.01; letter-spacing: -.052em; font-weight: 690; }
+  .lede { margin: 20px 0 0; max-width: 730px; color: var(--ink-2); font-size: 17px; }
+  .mode { margin-top: 18px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+
+  .dataset-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 48px 0 16px; }
+  .dataset-bar h2, .section-head h2 { margin: 0; font-size: 22px; letter-spacing: -.025em; }
+  .switcher { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  .switcher button { border: 0; border-radius: 8px; padding: 8px 13px; color: var(--muted); background: transparent; cursor: pointer; }
+  .switcher button[aria-selected="true"] { color: var(--ink); background: var(--raised); box-shadow: 0 1px 5px rgba(0,0,0,.1); }
+  .switcher button:focus-visible { outline: 2px solid var(--bite); outline-offset: 2px; }
+
+  .comparison { display: grid; grid-template-columns: minmax(250px,.72fr) minmax(0,1.28fr); gap: 16px; }
+  .verdict, .metrics, .sample-card, .check-card {
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow);
+  }
+  .verdict { padding: 27px; display: flex; flex-direction: column; min-height: 395px; }
+  .verdict .context { color: var(--muted); font-size: 12px; }
+  .verdict .big { margin: 18px 0 5px; font-size: clamp(43px, 6vw, 72px); line-height: .95; letter-spacing: -.055em; font-weight: 700; }
+  .verdict .big.good { color: var(--bite-ink); }
+  .verdict .big.bad { color: var(--warn); }
+  .verdict .statement { font-size: 20px; line-height: 1.25; letter-spacing: -.02em; }
+  .verdict .caveat { margin: auto 0 0; padding-top: 28px; color: var(--ink-2); font-size: 13px; }
+  .metrics { padding: 25px 27px; }
+  .metrics-key { display: flex; gap: 20px; color: var(--ink-2); font-size: 12px; margin-bottom: 23px; }
+  .metrics-key span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bite); }
+  .dot.xz { background: var(--xz); }
+  .metric { padding: 0 0 20px; margin-bottom: 19px; border-bottom: 1px solid var(--line); }
+  .metric:last-child { border: 0; margin: 0; padding: 0; }
+  .metric-head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+  .metric-name { font-weight: 640; }
+  .metric-note { color: var(--muted); font-size: 11px; }
+  .barline { display: grid; grid-template-columns: 50px minmax(0,1fr) 114px; align-items: center; gap: 9px; min-height: 27px; }
+  .barline .codec { color: var(--ink-2); font-size: 12px; font-weight: 650; }
+  .track { height: 9px; background: var(--track); border-radius: 2px; overflow: hidden; }
+  .fill { height: 100%; min-width: 2px; background: var(--bite); }
+  .fill.xz { background: var(--xz); }
+  .bar-value { text-align: right; font-size: 12px; font-weight: 650; }
+
+  .facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+  .fact { border-top: 1px solid var(--line); padding: 18px 2px 0; }
+  .fact .value { font-size: 24px; font-weight: 680; letter-spacing: -.03em; }
+  .fact .label { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+  section.lower { margin-top: 58px; }
+  .section-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
+  .section-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; max-width: 630px; }
+  .sample-card { padding: 25px 27px 21px; }
+  .sample-row { display: grid; grid-template-columns: 82px minmax(0,1fr) 108px 154px; gap: 13px; align-items: center; min-height: 43px; }
+  .sample-row + .sample-row { border-top: 1px solid color-mix(in srgb, var(--line) 65%, transparent); }
+  .sample-id { font-size: 12px; font-weight: 700; }
+  .sample-track { height: 12px; background: var(--track); position: relative; border-radius: 2px; }
+  .sample-fill { height: 100%; background: var(--blue); border-radius: 2px; }
+  .sample-row.best .sample-fill { background: var(--bite); }
+  .sample-row.base .sample-track::before { content: ""; position: absolute; left: 0; top: -4px; bottom: -4px; width: 2px; background: var(--muted); }
+  .saved { text-align: right; font-size: 12px; font-weight: 660; }
+  .status { color: var(--muted); font-size: 11px; text-align: right; }
+  .status.candidate { color: var(--blue); }
+  .status.endpoint { color: var(--bite-ink); }
+  .sample-foot { margin: 17px 0 0 95px; color: var(--muted); font-size: 12px; }
+
+  .checks { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 10px; }
+  .check-card { padding: 18px 17px; min-height: 150px; box-shadow: none; }
+  .check-mark { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; color: #0d3316; background: var(--bite); font-weight: 850; font-size: 13px; }
+  .check-card h3 { margin: 17px 0 6px; font-size: 14px; }
+  .check-card p { margin: 0; color: var(--muted); font-size: 12px; }
+  footer { margin-top: 35px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.7; }
+
+  @media (max-width: 820px) {
+    .comparison { grid-template-columns: 1fr; }
+    .verdict { min-height: 300px; }
+    .checks { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width: 580px) {
+    main { width: min(100% - 22px, 1160px); padding-top: 32px; }
+    .dataset-bar, .section-head { align-items: flex-start; flex-direction: column; }
+    .switcher { width: 100%; }
+    .switcher button { flex: 1; padding-inline: 6px; }
+    .verdict, .metrics, .sample-card { padding: 21px 18px; border-radius: 16px; }
+    .facts { grid-template-columns: 1fr; }
+    .fact { display: flex; align-items: baseline; justify-content: space-between; }
+    .sample-row { grid-template-columns: 68px minmax(0,1fr) 78px; }
+    .sample-row .status { display: none; }
+    .sample-foot { margin-left: 0; }
+    .checks { grid-template-columns: 1fr; }
+    .check-card { min-height: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Measured, round-tripped, independently compared</p>
+    <h1>Bite keeps the xz size win — 4.76× faster.</h1>
+    <p class="lede">EXP-0072 is the new fast/high-ratio endpoint. EXP-0068 remains the size maximum; Brotli 11 remains the stronger practical reference.</p>
+    <p class="mode mono" id="mode"></p>
+  </header>
+
+  <div class="dataset-bar">
+    <h2>Head-to-head validation</h2>
+    <div class="switcher" role="tablist" aria-label="Validation dataset">
+      <button id="research-tab" type="button" role="tab" aria-selected="true">Independent research</button>
+      <button id="development-tab" type="button" role="tab" aria-selected="false">Development</button>
+    </div>
+  </div>
+
+  <section class="comparison" aria-live="polite">
+    <article class="verdict">
+      <div class="context" id="dataset-context"></div>
+      <div class="big num" id="headline-number"></div>
+      <div class="statement" id="headline-statement"></div>
+      <div class="facts" id="facts"></div>
+      <p class="caveat" id="caveat"></p>
+    </article>
+    <article class="metrics">
+      <div class="metrics-key"><span><i class="dot"></i>Bite EXP-0072</span><span><i class="dot xz"></i><span id="reference-key"></span></span></div>
+      <div id="metrics"></div>
+    </article>
+  </section>
+
+  <section class="lower">
+    <div class="section-head">
+      <div>
+        <h2>Fast-preset search boundary</h2>
+        <p>All five points are complete 16-file research runs. Bars show encode time saved versus EXP-0069; each step spends a measured amount of ratio.</p>
+      </div>
+    </div>
+    <article class="sample-card">
+      <div id="sample-runs"></div>
+      <p class="sample-foot">EXP-0072 is the fastest point still smaller than xz-9e. EXP-0073 saves another 2.38 seconds but is 904 bytes larger than xz, so its depth-8 setting was reverted.</p>
+    </article>
+  </section>
+
+  <section class="lower">
+    <div class="section-head">
+      <div>
+        <h2>Correctness and robustness checks</h2>
+        <p>These checks cover the retained EXP-0072 fast path; EXP-0068 remains separately validated as the size-max path.</p>
+      </div>
+    </div>
+    <div class="checks" id="checks"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+<script>
+const DATA=__BITE_DATA__;
+const fmtInt=n=>new Intl.NumberFormat('en-US').format(n);
+const fmtMB=n=>(n/1e6).toFixed(3)+' MB';
+const fmtMiB=n=>(n/1048576).toFixed(1)+' MiB';
+const fmtSeconds=n=>n<1?n.toFixed(3)+' s':n.toFixed(3)+' s';
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const metricDefs=[
+  {name:'Compressed output',note:'Lower is better',key:'size',fmt:fmtMB},
+  {name:'Encode time',note:'Lower is better',key:'encodeSeconds',fmt:fmtSeconds},
+  {name:'Decode time',note:'Lower is better',key:'decodeSeconds',fmt:fmtSeconds},
+  {name:'Peak encoder RSS',note:'Lower is better',key:'encodeMemory',fmt:fmtMiB},
+];
+
+function metricRow(dataset,def){
+  const b=dataset.bite[def.key], x=dataset.reference[def.key], max=Math.max(b,x);
+  const line=(name,value,cls)=>`<div class="barline"><span class="codec">${name}</span><div class="track"><div class="fill ${cls}" style="width:${Math.max(1,value/max*100)}%"></div></div><span class="bar-value num">${def.fmt(value)}</span></div>`;
+  return `<div class="metric"><div class="metric-head"><span class="metric-name">${def.name}</span><span class="metric-note">${def.note}</span></div>${line('Bite',b,'')}${line(dataset.referenceLabel,x,'xz')}</div>`;
+}
+
+function renderDataset(name){
+  const d=DATA[name], wins=d.byteDelta<0;
+  document.getElementById('research-tab').setAttribute('aria-selected',String(name==='research'));
+  document.getElementById('development-tab').setAttribute('aria-selected',String(name==='development'));
+  document.getElementById('dataset-context').textContent=`${d.label} · ${d.aggregateFiles} files · ${fmtInt(d.originalSize)} source bytes`;
+  document.getElementById('reference-key').textContent=d.referenceLabel;
+  const big=document.getElementById('headline-number');
+  big.textContent=Math.abs(d.sizeDeltaPct).toFixed(2)+'%';
+  big.className='big num '+(wins?'good':'bad');
+  document.getElementById('headline-statement').textContent=wins
+    ? `smaller than ${d.referenceLabel} — ${fmtInt(-d.byteDelta)} bytes saved.`
+    : `larger than ${d.referenceLabel} — a ${fmtInt(d.byteDelta)}-byte gap.`;
+  document.getElementById('facts').innerHTML=[
+    [d.encodeTimeMultiple.toFixed(1)+'×','encode time'],
+    [d.decodeTimeMultiple.toFixed(1)+'×','decode time'],
+    [d.memoryMultiple.toFixed(1)+'×','encoder memory'],
+  ].map(([v,l])=>`<div class="fact"><div class="value num">${v}</div><div class="label">${l} vs ${d.referenceLabel}</div></div>`).join('');
+  document.getElementById('caveat').textContent=d.caveat;
+  document.getElementById('metrics').innerHTML=metricDefs.map(def=>metricRow(d,def)).join('');
+}
+
+function renderSamples(){
+  const max=Math.max(...DATA.sampleRuns.map(r=>r.secondsSaved));
+  const best=Math.max(...DATA.sampleRuns.map(r=>r.secondsSaved));
+  document.getElementById('sample-runs').innerHTML=DATA.sampleRuns.map(r=>{
+    const statusClass=r.status==='Candidate'?'candidate':r.status==='Fast endpoint'?'endpoint':'';
+    const saved=r.secondsSaved===0?'baseline':`${r.secondsSaved.toFixed(1)} s`;
+    return `<div class="sample-row ${r.secondsSaved===best?'best':''} ${r.secondsSaved===0?'base':''}" title="${esc(r.source)} · +${fmtInt(r.bytesAdded)} bytes">
+      <span class="sample-id mono">${r.id}</span>
+      <div class="sample-track"><div class="sample-fill" style="width:${r.secondsSaved?Math.max(1,r.secondsSaved/max*100):0}%"></div></div>
+      <span class="saved num">${saved}</span>
+      <span class="status ${statusClass}">${esc(r.status)}</span>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('mode').textContent=`${DATA.endpoint} · ${DATA.mode}`;
+document.getElementById('research-tab').addEventListener('click',()=>renderDataset('research'));
+document.getElementById('development-tab').addEventListener('click',()=>renderDataset('development'));
+document.getElementById('checks').innerHTML=DATA.checks.map(c=>`<article class="check-card"><div class="check-mark" aria-hidden="true">✓</div><h3>${esc(c.label)}</h3><p>${esc(c.detail)}</p></article>`).join('');
+document.getElementById('footer').innerHTML=`Generated ${esc(DATA.generated)} directly from <span class="mono">${esc(DATA.research.source)}</span>, <span class="mono">${esc(DATA.development.source)}</span>, and full-corpus frontier CSVs. Timing uses one-pass process measurements; compression claims are corpus-specific.`;
+renderSamples();
+renderDataset('research');
+</script>
+</body>
+</html>
