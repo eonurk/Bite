@@ -1,0 +1,99 @@
+{
+  "benchmark_schema": 1,
+  "benchmark_kind": "in_process",
+  "timestamp_utc": "2026-09-08T21:21:58Z",
+  "repeats": 1,
+  "warmups_per_file": 1,
+  "clock": "CLOCK_MONOTONIC",
+  "corpus_dir": "/Users/onur-lumc/Desktop/Bite/corpus/research",
+  "runner_sha256": "112d6339926e64de103ac5340d2bb6f11e2cd50dece43bf4fa2aeff5f74a468e",
+  "git_head": "b34acec5004ba1129ac383981a547363c7edc6c0",
+  "files": [
+    {
+      "path": "calgary/bib",
+      "bytes": 111261,
+      "sha256": "0f1a13936e358191533aca4a32ff42906d1b7f641f3afb0a90458b2410419fcf"
+    },
+    {
+      "path": "calgary/book1",
+      "bytes": 768771,
+      "sha256": "9ffa47cd93bccd732f20e0c304203cfbc1b8a91bedac536e2d8f6051003d9951"
+    },
+    {
+      "path": "calgary/book2",
+      "bytes": 610856,
+      "sha256": "c8538730cf2ce6a243acf3eb299c43d619b5c695d892f4884df796c13081fdf8"
+    },
+    {
+      "path": "calgary/geo",
+      "bytes": 102400,
+      "sha256": "913ff6f45610599020c02f543a0d5a1f46cf772412e25a568b683d23db8c447d"
+    },
+    {
+      "path": "calgary/news",
+      "bytes": 377109,
+      "sha256": "7f0482f9774681429eb7021050c17966f6acf19450e170de6611e1ed953d42e8"
+    },
+    {
+      "path": "calgary/obj1",
+      "bytes": 21504,
+      "sha256": "8c06109caffd7e794516e4ed10095b0238ea8df63ed66840907cd4dd23e2cf72"
+    },
+    {
+      "path": "calgary/obj2",
+      "bytes": 246814,
+      "sha256": "8b3e7f028bfefaebdd48a791060a1ab11d1ffd9bf27e0d63b15e58dda0deb984"
+    },
+    {
+      "path": "calgary/paper1",
+      "bytes": 53161,
+      "sha256": "8d9c42d9fa58b5bce1a8b5fae3cc27c9eb7cc7a032bc12a633d44e816497e143"
+    },
+    {
+      "path": "calgary/paper2",
+      "bytes": 82199,
+      "sha256": "dc4b9cf68094c632a920f4e76d0a0a8b9617b624c36928ca46a5d29798c5bbbe"
+    },
+    {
+      "path": "calgary/progc",
+      "bytes": 39611,
+      "sha256": "151377a9d6aa9b7e872000269707a15e2b038c826340628e6f4d8b4db9ec3c19"
+    },
+    {
+      "path": "calgary/progl",
+      "bytes": 71646,
+      "sha256": "9388db0cfb71ffbe5687d381819a5ff69cdd992d6931e0cf81a310a1caed0ba0"
+    },
+    {
+      "path": "calgary/progp",
+      "bytes": 49379,
+      "sha256": "d0cd70ab5f7381a8584b25fa73b3608571a17ee1042cc5c546f63b904614d1bc"
+    },
+    {
+      "path": "calgary/trans",
+      "bytes": 93695,
+      "sha256": "117a00c6af3e1c57f20013a8f1b468158f70634f685a348bedb7e4069cdd576a"
+    },
+    {
+      "path": "large/E.coli",
+      "bytes": 4638690,
+      "sha256": "9125dfd87315961ef4286f3856098069e050cc3a2abe65735fe43e69d1996f40"
+    },
+    {
+      "path": "large/bible.txt",
+      "bytes": 4047392,
+      "sha256": "4e0a7e8dff7d9c82dbded57305c0ca3cdd3c4ca014db27121782fe9710f4723f"
+    },
+    {
+      "path": "large/world192.txt",
+      "bytes": 2473400,
+      "sha256": "1aebdc97d29904b25791da9aa32be90b69d7da6dc0ac9b95512ed27ed40d2112"
+    }
+  ],
+  "codecs": {
+    "bite-max-bwt": [
+      "cmax",
+      "d"
+    ]
+  }
+}

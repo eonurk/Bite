@@ -1,0 +1,5 @@
+codec,file,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-link-split-optimal-wide-arithmetic-static-parse2-transform,geo,102400,62348,4.8709375,1.6423943029447616,0.429392999999,0.005032000001,0.2384761745073592,20.349761522188047,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-transform,obj2,246814,76250,2.4714967546411466,3.2369049180327867,0.606478000002,0.007104999997,0.40696282470128525,34.73807179510404,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-distance-context,geo,102400,62348,4.8709375,1.6423943029447616,0.473176999993,0.004941000007,0.21640950426904704,20.724549656937494,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-distance-context,obj2,246814,76250,2.4714967546411466,3.2369049180327867,0.657693000001,0.007104999997,0.37527235351391114,34.73807179510404,True

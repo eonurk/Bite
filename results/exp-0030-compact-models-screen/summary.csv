@@ -1,0 +1,3 @@
+codec,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-link-split-optimal-distances-bucketed,8982882,2270290,2.021881173547643,3.95671125715217,5.252416999981,0.034770000014,1.7102377819644734,258.35150981832265,True
+bite-link-split-optimal-compact-models,8982882,2252702,2.006217603659939,3.9876033314659463,5.510104000016,0.034698000001,1.6302563436141888,258.88760158340864,True

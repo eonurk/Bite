@@ -1,0 +1,33 @@
+{
+  "benchmark_schema": 1,
+  "benchmark_kind": "in_process",
+  "timestamp_utc": "2026-08-21T17:54:30Z",
+  "repeats": 1,
+  "warmups_per_file": 1,
+  "clock": "CLOCK_MONOTONIC",
+  "corpus_dir": "/private/tmp/bite-exp0045-transform.CUY5KS",
+  "runner_sha256": "d8497ada638bdf8da2381a5eacbbc0af1174b96ed1b6316e6d3461135544cc42",
+  "git_head": "b34acec5004ba1129ac383981a547363c7edc6c0",
+  "files": [
+    {
+      "path": "geo",
+      "bytes": 102400,
+      "sha256": "913ff6f45610599020c02f543a0d5a1f46cf772412e25a568b683d23db8c447d"
+    },
+    {
+      "path": "obj2",
+      "bytes": 246814,
+      "sha256": "8b3e7f028bfefaebdd48a791060a1ab11d1ffd9bf27e0d63b15e58dda0deb984"
+    }
+  ],
+  "codecs": {
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-transform": [
+      "clblinksopt2dfsbwasp2b16x2t",
+      "d"
+    ],
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-distance-context": [
+      "clblinksopt2dfsbwasp2b16x2td",
+      "d"
+    ]
+  }
+}

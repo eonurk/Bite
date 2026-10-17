@@ -1,0 +1,17 @@
+file,original_size_bytes,compressed_size_bytes,encode_time_seconds,decode_time_seconds
+corpus/research/calgary/bib,111261,31656,0.010433,0.005589
+corpus/research/calgary/book1,768771,249106,0.077290,0.048113
+corpus/research/calgary/book2,610856,171005,0.056285,0.031115
+corpus/research/calgary/geo,102400,60670,0.011449,0.007689
+corpus/research/calgary/news,377109,129811,0.043196,0.022360
+corpus/research/calgary/obj1,21504,11849,0.002798,0.002425
+corpus/research/calgary/obj2,246814,83222,0.027681,0.012200
+corpus/research/calgary/paper1,53161,19569,0.005058,0.003175
+corpus/research/calgary/paper2,82199,28866,0.007547,0.004775
+corpus/research/calgary/progc,39611,15054,0.004035,0.002400
+corpus/research/calgary/progl,71646,18776,0.007425,0.003593
+corpus/research/calgary/progp,49379,13230,0.005862,0.002365
+corpus/research/calgary/trans,93695,21357,0.011177,0.003755
+corpus/research/large/E.coli,4638690,1213519,2.017094,0.567292
+corpus/research/large/bible.txt,4047392,848793,1.179950,0.326938
+corpus/research/large/world192.txt,2473400,456895,0.630424,0.160766

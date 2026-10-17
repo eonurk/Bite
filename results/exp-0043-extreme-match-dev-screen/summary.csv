@@ -1,0 +1,2 @@
+codec,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-link-split-optimal-wide-arithmetic-static-parse2-extreme,8982882,2080032,1.8524406754981309,4.318626828818018,233.537683999979,0.109891999979,0.038464379050709464,81.74282023911294,True

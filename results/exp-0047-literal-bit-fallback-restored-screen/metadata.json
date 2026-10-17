@@ -1,0 +1,49 @@
+{
+  "benchmark_schema": 1,
+  "benchmark_kind": "in_process",
+  "timestamp_utc": "2026-08-21T18:25:31Z",
+  "repeats": 1,
+  "warmups_per_file": 1,
+  "clock": "CLOCK_MONOTONIC",
+  "corpus_dir": "/private/tmp/bite-exp0047-fallback.q304s4",
+  "runner_sha256": "3bc5f6bd0596b96ee58182db54bb366db800cc66b220dd74c8f61c4f14880b9a",
+  "git_head": "b34acec5004ba1129ac383981a547363c7edc6c0",
+  "files": [
+    {
+      "path": "events.json",
+      "bytes": 862740,
+      "sha256": "614c2b077d5a2bd1809e84a558e0e7dbe989cf5f0ebaf55f7e5f1f771bdd11d3"
+    },
+    {
+      "path": "generated.c",
+      "bytes": 496390,
+      "sha256": "1d9daefd60a638508d78a2777318402b2c97fb99001b28916f0fa9f7966b5739"
+    },
+    {
+      "path": "kennedy.xls",
+      "bytes": 1029744,
+      "sha256": "9af47239ca29dfe20e633f80bbbb9a4cc9783d0803d7b2b5626f42e4c3790420"
+    },
+    {
+      "path": "pseudo_text.bin",
+      "bytes": 600000,
+      "sha256": "dd1a6db79e6d1976cc9c93d5f562bbc6a720de9b7e19689e4bb8ca5b005d523a"
+    },
+    {
+      "path": "readings.f64",
+      "bytes": 800000,
+      "sha256": "2550e6ca1481696e3c71bf9bf3f2c8e41e58cb5d7671e09505a38e2901946078"
+    },
+    {
+      "path": "research_notes.txt",
+      "bytes": 864930,
+      "sha256": "31a1c1a0bd55a4493443c70ee3344a245e10fef38fc71c4f07704324bb31c36c"
+    }
+  ],
+  "codecs": {
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-literal-bits": [
+      "clblinksopt2dfsbwasp2b16x2tdl",
+      "d"
+    ]
+  }
+}

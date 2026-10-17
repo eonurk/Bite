@@ -1,0 +1,2 @@
+codec,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-max-bwt,13787888,3247227,1.8841040774337592,4.246049937377338,239.444151000002,0.855329000043,0.05758289748326275,16.119981900890583,True

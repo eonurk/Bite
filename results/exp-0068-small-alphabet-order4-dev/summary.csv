@@ -1,0 +1,2 @@
+codec,aggregate_files,excluded_files,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,peak_memory_encode,peak_memory_decode,binary_size,correct
+bite-link-split-optimal-wide-arithmetic-static-parse2-small-alphabet-order4,25,1,8458594,1466266,1.3867704254394997,5.768799112848556,291.4814769590157,0.3914673348481301,0.029019319128773785,21.607406920124035,191381504,20086784,198072,True

@@ -1,0 +1,7 @@
+codec,file,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-link-split-optimal-wide-arithmetic-static-parse2-literal-bits,events.json,862740,83426,0.7735911166747803,10.341380385011867,7.119894999996,0.011091000008,0.12117313527804618,77.78739512917689,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-literal-bits,generated.c,496390,34441,0.5550635588952235,14.412763857030864,4.460027000008,0.004415000003,0.11129753250352736,112.43261600514205,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-literal-bits,kennedy.xls,1029744,73382,0.5700989760561849,14.032651058842768,4.35070000001,0.016172999996,0.23668467143163932,63.670562063604905,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-literal-bits,pseudo_text.bin,600000,128475,1.713,4.670169293636894,1.796153000003,0.016067999997,0.3340472665741715,37.34129948419367,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-literal-bits,readings.f64,800000,623715,6.23715,1.2826371018814684,3.843661999999,0.05443199999,0.20813484640434257,14.697236922159252,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-literal-bits,research_notes.txt,864930,11845,0.10955799891320685,73.02068383284086,11.558254000003,0.002594999998,0.07483223677207436,333.30635863838637,True

@@ -2,6 +2,20 @@
 
 ## What currently works
 
+- `EXP-0074` is the current size-max endpoint,
+  `clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3`. It combines 16 MiB whole blocks, a
+  2,048-deep match chain, adaptive/static arithmetic choices, contextual and
+  matched literals, contextual control bits, a sampled structured-data
+  transform, four-entry recent-distance coding, exact-selected order-4 coding
+  for alphabets of at most eight bytes, and an exact-selected generic literal
+  context mix. It produces 1,466,005 bytes on the 8,458,594-byte dev aggregate
+  and 3,347,119 bytes on the 13,787,888-byte public research suite, 13,689 bytes
+  smaller than xz-9e but 63,405 bytes larger than Brotli 11.
+- `EXP-0072` is the fast/high-ratio endpoint,
+  `clblinksopt2dfsbwasp2b16x2tdlmmdcra4f`. It produces 3,359,272 research bytes
+  in 37.58 seconds, retaining a 1,536-byte lead over xz-9e while encoding 4.76
+  times faster than EXP-0068. It is a speed/ratio preset, not the size maximum.
+
 - `BASE-0001` is a correct, readable 64 KiB-window LZSS codec. It uses a
   65,536-entry last-position hash table, per-input hash chains capped at 64
   probes, greedy parsing, 4..259-byte matches, and eight-token control groups.
@@ -36,10 +50,10 @@
   unchanged. Encode throughput falls 20.386% and RSS rises 4.734% versus
   independent lazy because prior history is re-indexed for each block.
 - `EXP-0006` combines linked history and static Huffman in `cblinkh`/`clblinkh`.
-  The lazy mode is Bite's current minimum-size point: 3,920,565 bytes (3.492
+  The lazy mode was Bite's then-current minimum-size point: 3,920,565 bytes (3.492
   bits/byte), 25.60 MB/s encode, 56.21 MB/s decode, and 6.90 MB encoder peak
   RSS. It is 0.523% smaller than gzip-1, but zstd-1 remains smaller and faster.
-- `EXP-0007` field-split entropy mode `clblinks` is Bite's new minimum-size
+- `EXP-0007` field-split entropy mode `clblinks` was Bite's next minimum-size
   point: 3,615,800 bytes (3.220 bits/byte), 21.71 MB/s encode, 54.27 MB/s decode,
   and 6.36 MB encoder RSS. Five exact-counted order-0 alphabets reduce linked
   joint-Huffman size 7.773% with no per-file size regression.
@@ -110,6 +124,14 @@
   three-repeat encode throughput improves 15.635% on dev and 8.247% on public
   research; all 16 public files are faster, dev RSS and the 92,552-byte binary
   are unchanged, and decoder behavior is an exact control.
+- `EXP-0030` retains its historical maximum-ratio mode `clblinksopt2dfsbc`. It preserves
+  each split stream's Huffman code lengths while exact-selecting the existing
+  serialized tree or a canonical code with packed/sparse length metadata.
+  Dev size falls 0.775% to 2,252,702 bytes (16/26 files improve, none regress),
+  and public research falls 2.501% to 3,999,152 bytes with all 16 files
+  improving. Three-repeat startup-free decode changes +0.13%/-0.65%; process
+  dev encode falls 3.04% and encoder RSS rises 11.75%. All 42 observed files
+  pass ASan+UBSan round trips.
 - Routine candidate evaluation now preserves the original frozen dev corpus and
   adds a separately addressable 13,787,888-byte public research suite: 13
   non-duplicate Calgary files plus the three-file Large corpus. Both archives
@@ -189,6 +211,11 @@
   all 42 dev+research files, but one-repeat encode gains were only 0.789% dev
   and 1.184% research. Both are below the 3% validation threshold, so the extra
   interface and mode were reverted without a longer timing run.
+- `EXP-0029` literal byte residuals from the previously decoded byte were
+  rejected and removed. Exact block selection saved only 28 bytes on dev and
+  zero on public research, while constructing the extra representations added
+  substantial work. A single residual alphabet does not capture useful text
+  transition context even though it avoids EXP-0011's extra trees.
 
 ## Dataset-specific observations
 
@@ -651,6 +678,19 @@ Ranking after `EXP-0028`:
 5. Reconsider conditional distance coding only with a representation that
    avoids extra Huffman trees and first demonstrates broad validation signal.
 
+Ranking after `EXP-0030`:
+
+1. Reduce the 20.8% binary-size increase from canonical model support and avoid
+   building ordinary plus compact representations simultaneously.
+2. Profile canonical decoder/model reconstruction before changing its lookup;
+   repeated decode is already within 1% on both routine suites.
+3. Explore entropy coders with less integer-bit redundancy than Huffman while
+   preserving exact per-stream model-cost selection.
+4. Revisit literal context only with a shared or compact dependency model;
+   EXP-0029 closes a single residual alphabet and EXP-0011 closes four trees.
+5. Audit the retained mode on a new locked corpus; public research has now
+   informed the decision and is validation/training evidence, not a hold-out.
+
 ## Interactions between components
 
 - Lazy parsing interacts strongly with structured/repetitive text: size changes
@@ -849,6 +889,9 @@ Ranking after `EXP-0028`:
   encoder memory, not code size.
 - EXP-0023 makes the measured binary 92,552 bytes (+96, +0.104%). The speed
   gain comes from shared runtime state rather than code-size expansion.
+- EXP-0030 increases the production binary from 92,552 to 111,832 bytes
+  (+20.83%). This is a material maximum-mode cost even though the same binary
+  serves old modes; compacting or isolating canonical support is now a priority.
 - The new in-process baseline exposes the prefix lookup's steady-state effect:
   versus `dslow`, decode is 47.7% faster on dev (277.29 vs 187.73 MB/s) and
   68.3% faster on public research (196.73 vs 116.86 MB/s). The earlier process
@@ -965,3 +1008,161 @@ internal size/speed/memory frontier, but remains externally dominated by xz-6.
 EXP-0023 preserves the same 2,270,290-byte output while raising dev encode
 throughput from 1.36 to 1.58 MB/s at nearly equal RSS. It supersedes EXP-0022
 on Bite's internal size/speed frontier, but xz-6 remains smaller and faster.
+
+## EXP-0031 through EXP-0060 continuation (2026-08-21)
+
+The wide-history/arithmetic line produced a genuine maximum-ratio branch:
+
+- EXP-0031 introduced a 16 MiB window with 24-bit distances and 16-bit lengths.
+- EXP-0033, EXP-0036, EXP-0037, and EXP-0038 added adaptive/static arithmetic
+  choices and two static-cost parse iterations.
+- EXP-0039/0040 raised fixed blocks to 1 MiB and then 16 MiB.
+- EXP-0041, EXP-0043, and retained EXP-0057 deepened match discovery; the final
+  size-max build uses a 2,048-entry longest-match chain and 128-entry cost chain.
+- EXP-0045 retained a bounded sampled-delta transform for structured data.
+- EXP-0047/0048/0050 retained previous-byte, matched-byte, and mixed coarse
+  order-2 literal models. EXP-0051's full order-2 model is retained only inside
+  mode 20, exact-selected alongside EXP-0050's representation.
+- EXP-0053 retained eight-decision binary control modeling.
+- EXP-0058 retained a four-entry move-to-front recent-distance cache and an
+  eight-stream mode 22 that omits raw distance bytes on cache hits.
+
+The important negative results are also closed: coarse duplicated literal
+parses (EXP-0032), wider length enumeration (EXP-0042), full extreme transformed
+parsing (EXP-0044), length-conditioned distance arithmetic (EXP-0046), a
+persistent matched predictor (EXP-0049), modulo distance deltas (EXP-0052),
+four-token control state (EXP-0054), hashed order-3 literals (EXP-0055), a
+256-entry distance cost chain (EXP-0056), equivalent recent-offset substitution
+(EXP-0059), and forward recent-match extension (EXP-0060) were rejected. Exact
+results and reasons are recorded in `experiments.csv` and their result folders.
+
+EXP-0058 is the current honest endpoint. Same-run process measurements on the
+16-file Calgary+Large research suite are:
+
+- Bite: 3,423,757 bytes, 1.986530 bpb, 0.0778 MB/s encode, 21.55 MB/s decode,
+  282,771,456-byte peak encoder RSS.
+- xz-6 5.8.2: 3,363,140 bytes, 1.951359 bpb, 3.1717 MB/s encode, 62.63 MB/s
+  decode, 60,604,416-byte peak encoder RSS.
+
+Bite therefore does **not** beat xz on public research: it is 60,617 bytes
+(1.80%) larger, roughly 40.8 times slower to encode, and uses about 4.7 times
+the peak encoder memory in this run. On the frozen 25-file dev aggregate Bite
+does beat xz on size (1,466,266 versus 1,717,936 bytes, a 251,670-byte or 14.65%
+win), but it is about 185 times slower to encode and uses about 6.4 times the
+peak encoder memory. This distribution-specific win must not be generalized.
+
+Validation for the consolidated endpoint includes a clean warning-enabled
+build, `git diff --check`, standalone exact round trips for all 26 development
+files, representative ASan+UBSan runs covering mode 22/matched literals/the
+structured transform, random 16 MiB-1/16 MiB/16 MiB+1 boundaries, and clean
+rejection of truncated, invalid-mode, and oversized-block headers. `wide_hash4`
+now constructs its word explicitly in little-endian order rather than depending
+on host endianness.
+
+The next high-value research direction is rep-aware parsing with bounded state.
+EXP-0059/0060 show that simple forward substitutions are too weak; a credible
+advance needs the parser itself to price recent-distance cache states, ideally
+without multiplying the already dominant DP/search cost. Search-depth brute
+force has diminishing returns and is not a practical route to beating xz.
+
+## EXP-0061 through EXP-0068 continuation (2026-08-22)
+
+Stateful recent-distance parsing was tested before changing representations.
+EXP-0061 improved the fixed sample by 391 bytes; a second model iteration,
+wider match-length choices, beam widths four and eight, and cache-miss-only raw
+distance costs moved the result by at most another 72 bytes. EXP-0061 through
+EXP-0066 were therefore rejected as marginal. More brute-force parser state is
+not the current high-value direction.
+
+EXP-0067 raised the external target. On one same-run pass over all 16 public
+research files, the relevant high-ratio results were:
+
+- Brotli 11: 3,283,714 bytes, 1.905275 bpb.
+- xz-9e: 3,360,808 bytes, 1.950006 bpb.
+- xz-6/xz-9: 3,363,140 bytes, 1.951359 bpb.
+- zstd-19: 3,384,473 bytes, 1.963737 bpb.
+- Bite EXP-0058: 3,423,757 bytes, 1.986530 bpb.
+
+Brotli 11 beat EXP-0058 on every research file. E. coli alone accounted for
+64,826 bytes (46%) of the 140,043-byte aggregate gap and contains exactly four
+distinct bytes. This motivated a representation change instead of further LZ
+parser search.
+
+EXP-0068 adds exact-selected mode 23 for any block with at most eight distinct
+bytes. It serializes the observed alphabet and adaptive-arithmetic-codes ranks
+with an order-4 context. This is a generic alphabet-cardinality gate, not a
+file-name, extension, or DNA-specific rule. E. coli falls from 1,202,684 to
+1,127,219 bytes, beating Brotli 11 on that file by 10,639 bytes. No other dev or
+research file selected the mode.
+
+The retained EXP-0068 research aggregate is 3,348,292 bytes (1.942744 bpb):
+12,516 bytes (0.37%) smaller than xz-9e, 36,181 bytes (1.07%) smaller than
+zstd-19, and 64,578 bytes (1.97%) larger than Brotli 11. Encoding remains much
+slower: 178.83 seconds versus 5.60 for xz-9e and 23.17 for Brotli 11 in the
+corresponding one-pass runs. Peak encoder RSS is 282,918,912 bytes versus
+100,073,472 for xz-9e and 116,506,624 for Brotli 11.
+
+Validation includes all 16 research and 26 development files, unchanged
+1,466,266-byte development aggregate, a warning-clean build, ASan+UBSan on an
+actual mode-23 stream, and clean rejection of a truncated mode-23 stream. The
+next size target is Brotli 11. The largest remaining absolute deficits are
+`world192.txt` (22,460 bytes), `geo` (7,661), `news` (7,545), and `book2`
+(6,897), pointing toward stronger general text/binary context modeling rather
+than further special-casing of small alphabets.
+
+## EXP-0069 through EXP-0073 speed frontier (2026-08-22)
+
+Phase timing on E. coli showed 71.30 of 98.36 CPU seconds in the 2,048-deep
+wide match index, 22.81 seconds in wide parsing/coding, and 4.11 seconds in the
+legacy and delta candidates. EXP-0069 therefore added a separate fast preset:
+small-alphabet order-4 coding is attempted before allocating the wide index,
+and a winning whole-file mode-23 stream returns immediately. E. coli became
+byte-identical to EXP-0068 at 1,127,219 bytes while falling to 0.14--0.17
+seconds in repeated one-pass measurements. General blocks use a 1,024-deep
+discovery chain and skip intermediate encoded wide candidates.
+
+Distance-cost chain depths 64, 48, 32, 16, and 8 were screened on all 16
+research files. Their aggregate size/time points were respectively 3,355,439
+bytes/62.79 s, 3,356,119/48.67 s, 3,357,241/41.12 s, 3,359,272/37.58 s, and
+3,361,712/35.20 s. Depth 16 is retained as EXP-0072 because it is the fastest
+measured point still smaller than the fixed xz-9e reference (3,360,808 bytes).
+Depth 8 is rejected: its extra 2.38 seconds saved costs the xz size win.
+
+EXP-0072 round-trips all 16 research and 26 development files. Development is
+1,482,255 bytes in 70.57 seconds versus EXP-0068's 1,466,266 bytes in 291.48
+seconds. Peak research encode RSS was 237,486,080 bytes. A warning-clean build,
+ASan+UBSan round trip through the actual early mode-23 path, and rejection of a
+one-byte-truncated mode-23 stream also pass. Brotli 11 remains the stronger
+practical reference at 3,283,714 bytes and 23.17 seconds.
+
+## EXP-0074 generic literal context mix (2026-08-22)
+
+EXP-0074 adds exact-selected mode 24 to the maximum-ratio preset. For unmatched
+literals it retains the order-1 and exact order-2 bit models, then cautiously
+mixes in tagged hashed order-3 and lowercase four-character word-suffix
+contexts. All contexts are reconstructed from already decoded bytes. There is
+no filename, extension, corpus-position, or file-type gate. Mode 24 is compared
+by complete encoded size against the retained mode 22 and older candidates, so
+files that reject the model remain byte-identical.
+
+Confidence thresholds 14, 10, 6, 2, and 0 were probed. Threshold 2 was best:
+zero made sparse contexts severely overconfident, while higher thresholds left
+useful text predictability unused. A 21-bit tagged table is retained because a
+19-bit table lost bytes through collisions. The final research aggregate is
+3,347,119 bytes (1.942063 bpb), 1,173 bytes smaller than EXP-0068. Ten of 16
+files improve and six are unchanged; the largest gains are `bible.txt` (-867),
+`book1` (-177), and `book2` (-76). It beats the fixed xz-9e reference by 13,689
+bytes and trails Brotli 11 by 63,405 bytes (1.93%).
+
+On the same frozen development aggregate used by EXP-0068, EXP-0074 produces
+1,466,005 bytes (1.386524 bpb), a 261-byte gain. Seven files improve and the
+rest are unchanged. All 16 research and 26 measured development files
+round-trip exactly. A warning-clean build, ASan+UBSan round trip through an
+actual mode-24 stream, and clean rejection of a one-byte-truncated mode-24
+stream pass. The in-process screens report 265.77 research encode seconds and
+290.89 seconds on the development aggregate, but process-level peak RSS could
+not be recorded because the environment blocked `/usr/bin/time`'s memory
+sampler. EXP-0074 is retained only as the size maximum; EXP-0072 remains the
+fast/high-ratio endpoint. The next high-value target is a much stronger generic
+text model or parser/model joint optimization: this experiment closes only
+1.8% of the remaining Brotli gap.

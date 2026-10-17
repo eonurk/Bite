@@ -1,0 +1,4 @@
+codec,file,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-link-split-optimal-wide-arithmetic-static-parse2-control-context,bible.txt,4047392,902442,1.783750128477795,4.4849331037340905,60.456646000006,0.109597999995,0.06694701522144643,36.92943302053548,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-control-context,book1,768771,261296,2.719103608226637,2.9421460718878207,4.011067999993,0.035103000002,0.1916624200839631,21.900435858935108,True
+bite-link-split-optimal-wide-arithmetic-static-parse2-control-context,lcet10.txt,426754,120201,2.2533075261157482,3.5503365196628978,1.845749999993,0.017668,0.23120899363490097,24.154063844238173,True

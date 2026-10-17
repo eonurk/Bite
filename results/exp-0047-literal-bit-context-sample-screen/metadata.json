@@ -1,0 +1,38 @@
+{
+  "benchmark_schema": 1,
+  "benchmark_kind": "in_process",
+  "timestamp_utc": "2026-08-21T17:57:41Z",
+  "repeats": 1,
+  "warmups_per_file": 1,
+  "clock": "CLOCK_MONOTONIC",
+  "corpus_dir": "/private/tmp/bite-exp0032-samples.j67kiu",
+  "runner_sha256": "d11eac661651e415911e287db91d06e8e9b618cab7038fd8c1e4aecbea1c762d",
+  "git_head": "b34acec5004ba1129ac383981a547363c7edc6c0",
+  "files": [
+    {
+      "path": "bible.txt",
+      "bytes": 4047392,
+      "sha256": "4e0a7e8dff7d9c82dbded57305c0ca3cdd3c4ca014db27121782fe9710f4723f"
+    },
+    {
+      "path": "book1",
+      "bytes": 768771,
+      "sha256": "9ffa47cd93bccd732f20e0c304203cfbc1b8a91bedac536e2d8f6051003d9951"
+    },
+    {
+      "path": "lcet10.txt",
+      "bytes": 426754,
+      "sha256": "5314ba1dbb03f471df88bec6cd120a938ef60d0fd3511c5c1dce61bf7463245f"
+    }
+  ],
+  "codecs": {
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-transform": [
+      "clblinksopt2dfsbwasp2b16x2t",
+      "d"
+    ],
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-literal-bits": [
+      "clblinksopt2dfsbwasp2b16x2tdl",
+      "d"
+    ]
+  }
+}

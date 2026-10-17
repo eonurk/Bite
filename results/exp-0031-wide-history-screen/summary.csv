@@ -1,0 +1,3 @@
+codec,original_size_bytes,compressed_size_bytes,bits_per_byte,compression_ratio,encode_time_seconds,decode_time_seconds,encode_MB_per_second,decode_MB_per_second,correct
+bite-link-split-optimal-compact-models,8982882,2252702,2.006217603659939,3.9876033314659463,5.176088999987,0.033550999987,1.7354574080976122,267.7381301147684,True
+bite-link-split-optimal-wide-history,8982882,2243886,1.9983662258949857,4.003270219610087,8.853930000056,0.033254000025,1.0145643798791253,270.12936769251115,True

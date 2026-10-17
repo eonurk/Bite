@@ -1,0 +1,43 @@
+{
+  "benchmark_schema": 1,
+  "benchmark_kind": "in_process",
+  "timestamp_utc": "2026-08-21T17:30:51Z",
+  "repeats": 1,
+  "warmups_per_file": 1,
+  "clock": "CLOCK_MONOTONIC",
+  "corpus_dir": "/private/tmp/bite-exp0044-transform.nsTDJZ",
+  "runner_sha256": "99ef914850493db92a597940d067480d5ac02a0d4fc1aa3658541b8a048976f9",
+  "git_head": "b34acec5004ba1129ac383981a547363c7edc6c0",
+  "files": [
+    {
+      "path": "geo",
+      "bytes": 102400,
+      "sha256": "913ff6f45610599020c02f543a0d5a1f46cf772412e25a568b683d23db8c447d"
+    },
+    {
+      "path": "kennedy.xls",
+      "bytes": 1029744,
+      "sha256": "9af47239ca29dfe20e633f80bbbb9a4cc9783d0803d7b2b5626f42e4c3790420"
+    },
+    {
+      "path": "obj2",
+      "bytes": 246814,
+      "sha256": "8b3e7f028bfefaebdd48a791060a1ab11d1ffd9bf27e0d63b15e58dda0deb984"
+    },
+    {
+      "path": "ptt5",
+      "bytes": 513216,
+      "sha256": "0ec3a75089bb52342813496b17e51377bc9eba3cb519a444d67025354841d650"
+    }
+  ],
+  "codecs": {
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-extreme": [
+      "clblinksopt2dfsbwasp2b16x2",
+      "d"
+    ],
+    "bite-link-split-optimal-wide-arithmetic-static-parse2-transform": [
+      "clblinksopt2dfsbwasp2b16x2t",
+      "d"
+    ]
+  }
+}
