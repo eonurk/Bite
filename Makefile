@@ -1,5 +1,5 @@
 CC ?= cc
-CFLAGS ?= -O3 -DNDEBUG -std=c11 -Wall -Wextra -Wpedantic
+CFLAGS ?= -O3 -DNDEBUG -std=c11 -Wall -Wextra -Wpedantic -pthread
 
 .PHONY: all clean test test-bwt corpus research-corpus benchmark benchmark-screen benchmark-validate
 

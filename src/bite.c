@@ -1,4 +1,6 @@
 #include <errno.h>
+#include <pthread.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,6 +45,47 @@ static void fail(const char *message) {
 static void fail_errno(const char *path) {
     fprintf(stderr, "bite: %s: %s\n", path, strerror(errno));
     exit(1);
+}
+
+/* EXP-0082: independent encoder work runs on BITE_THREADS workers (default 1).
+ * Callers combine results in task order, so output never depends on threads. */
+typedef struct {
+    void (*run)(void *);
+    void *arg;
+} BiteTask;
+
+typedef struct {
+    BiteTask *tasks;
+    size_t count;
+    atomic_size_t next;
+} BiteTaskQueue;
+
+static unsigned bite_threads(void) {
+    const char *value = getenv("BITE_THREADS");
+    long threads = value ? strtol(value, NULL, 10) : 1;
+    return threads < 1 ? 1u : (threads > 64 ? 64u : (unsigned)threads);
+}
+
+static void *bite_task_worker(void *opaque) {
+    BiteTaskQueue *queue = (BiteTaskQueue *)opaque;
+    for (;;) {
+        size_t i = atomic_fetch_add(&queue->next, 1);
+        if (i >= queue->count) return NULL;
+        queue->tasks[i].run(queue->tasks[i].arg);
+    }
+}
+
+static void run_tasks(BiteTask *tasks, size_t count) {
+    unsigned threads = bite_threads();
+    if (threads > count) threads = (unsigned)count;
+    BiteTaskQueue queue = {tasks, count, 0};
+    pthread_t workers[64];
+    unsigned started = 0;
+    while (started + 1u < threads &&
+           !pthread_create(&workers[started], NULL, bite_task_worker, &queue))
+        ++started;
+    bite_task_worker(&queue);
+    for (unsigned i = 0; i < started; ++i) pthread_join(workers[i], NULL);
 }
 
 static void reserve(Buffer *buffer, size_t extra) {
@@ -2553,6 +2596,49 @@ typedef struct {
     unsigned cost_chain;
 } WideMatchIndex;
 
+typedef struct {
+    const uint8_t *input;
+    size_t input_size, block_size, begin, end;
+    unsigned max_chain;
+    WideMatchIndex *index;
+} WideSearchTask;
+
+static void wide_search_range(void *opaque) {
+    const WideSearchTask *task = (const WideSearchTask *)opaque;
+    const uint8_t *input = task->input;
+    const int32_t *previous = task->index->previous;
+    for (size_t pos = task->begin; pos < task->end; ++pos) {
+        if (pos + 3u >= task->input_size) continue;
+        int32_t candidate = previous[pos];
+        size_t block_end = (pos / task->block_size + 1u) * task->block_size;
+        if (block_end > task->input_size) block_end = task->input_size;
+        size_t limit = block_end - pos;
+        if (limit > WIDE_MAX_MATCH) limit = WIDE_MAX_MATCH;
+        size_t best_length = 0;
+        size_t best_offset = 0;
+        unsigned depth = 0;
+        while (candidate >= 0 && depth++ < task->max_chain) {
+            size_t c = (size_t)candidate;
+            size_t offset = pos - c;
+            if (offset > WIDE_WINDOW) break;
+            if (best_length < limit && input[c + best_length] == input[pos + best_length]) {
+                size_t length = 0;
+                while (length < limit && input[c + length] == input[pos + length]) ++length;
+                if (length > best_length) {
+                    best_length = length;
+                    best_offset = offset;
+                    if (length == limit) break;
+                }
+            }
+            candidate = previous[c];
+        }
+        if (best_length >= MIN_MATCH) {
+            task->index->lengths[pos] = (uint16_t)best_length;
+            task->index->offsets[pos] = (uint32_t)best_offset;
+        }
+    }
+}
+
 static WideMatchIndex build_wide_match_index(const uint8_t *input, size_t input_size,
                                              size_t block_size, unsigned max_chain,
                                              unsigned cost_chain) {
@@ -2566,36 +2652,10 @@ static WideMatchIndex build_wide_match_index(const uint8_t *input, size_t input_
     if ((input_size && (!index.lengths || !index.offsets || !index.previous)) || !heads)
         fail("out of memory");
     for (size_t i = 0; i < WIDE_HASH_SIZE; ++i) heads[i] = -1;
+    /* Chains first; each position's search then reads only earlier links. */
     for (size_t pos = 0; pos < input_size; ++pos) {
         if (pos + 3u < input_size) {
             uint32_t hash = wide_hash4(input + pos);
-            int32_t candidate = heads[hash];
-            size_t block_end = (pos / block_size + 1u) * block_size;
-            if (block_end > input_size) block_end = input_size;
-            size_t limit = block_end - pos;
-            if (limit > WIDE_MAX_MATCH) limit = WIDE_MAX_MATCH;
-            size_t best_length = 0;
-            size_t best_offset = 0;
-            unsigned depth = 0;
-            while (candidate >= 0 && depth++ < max_chain) {
-                size_t c = (size_t)candidate;
-                size_t offset = pos - c;
-                if (offset > WIDE_WINDOW) break;
-                if (best_length < limit && input[c + best_length] == input[pos + best_length]) {
-                    size_t length = 0;
-                    while (length < limit && input[c + length] == input[pos + length]) ++length;
-                    if (length > best_length) {
-                        best_length = length;
-                        best_offset = offset;
-                        if (length == limit) break;
-                    }
-                }
-                candidate = index.previous[c];
-            }
-            if (best_length >= MIN_MATCH) {
-                index.lengths[pos] = (uint16_t)best_length;
-                index.offsets[pos] = (uint32_t)best_offset;
-            }
             index.previous[pos] = heads[hash];
             heads[hash] = (int32_t)pos;
         } else {
@@ -2603,6 +2663,19 @@ static WideMatchIndex build_wide_match_index(const uint8_t *input, size_t input_
         }
     }
     free(heads);
+    size_t chunk = 65536u, chunks = (input_size + chunk - 1u) / chunk;
+    WideSearchTask *searches = chunks ? malloc(chunks * sizeof(*searches)) : NULL;
+    BiteTask *tasks = chunks ? malloc(chunks * sizeof(*tasks)) : NULL;
+    if (chunks && (!searches || !tasks)) fail("out of memory");
+    for (size_t i = 0; i < chunks; ++i) {
+        size_t end = (i + 1u) * chunk < input_size ? (i + 1u) * chunk : input_size;
+        searches[i] = (WideSearchTask){input, input_size, block_size, i * chunk, end,
+                                       max_chain, &index};
+        tasks[i] = (BiteTask){wide_search_range, &searches[i]};
+    }
+    run_tasks(tasks, chunks);
+    free(tasks);
+    free(searches);
     return index;
 }
 
@@ -3702,19 +3775,84 @@ static void consider_wide_encoding(WideEncoding *best, Buffer candidate, uint8_t
     }
 }
 
+/* Encoders of one immutable field set; run as a batch, considered in order. */
+typedef struct {
+    Buffer (*encode)(WideFields *, int);
+    WideFields *fields;
+    int argument;
+    uint8_t mode;
+    Buffer result;
+} WideEncodeTask;
+
+typedef struct {
+    WideEncodeTask items[16];
+    size_t count;
+} WideEncodeBatch;
+
+static void run_wide_encode(void *opaque) {
+    WideEncodeTask *task = (WideEncodeTask *)opaque;
+    task->result = task->encode(task->fields, task->argument);
+}
+
+static void add_wide_encode(WideEncodeBatch *batch, Buffer (*encode)(WideFields *, int),
+                            WideFields *fields, int argument, uint8_t mode) {
+    if (batch->count == sizeof(batch->items) / sizeof(batch->items[0]))
+        fail("too many wide encode tasks");
+    batch->items[batch->count++] = (WideEncodeTask){encode, fields, argument, mode, {0}};
+}
+
+static void run_wide_encode_batch(WideEncodeBatch *batch) {
+    BiteTask tasks[16];
+    for (size_t i = 0; i < batch->count; ++i)
+        tasks[i] = (BiteTask){run_wide_encode, &batch->items[i]};
+    run_tasks(tasks, batch->count);
+}
+
+static Buffer wide_encode_plain(WideFields *f, int a) { (void)a; return encode_wide_fields(f); }
+static Buffer wide_encode_hybrid(WideFields *f, int a) { (void)a; return encode_wide_fields_hybrid(f); }
+static Buffer wide_encode_order1(WideFields *f, int a) { (void)a; return encode_wide_fields_order1_hybrid(f); }
+static Buffer wide_encode_context(WideFields *f, int a) { (void)a; return encode_wide_fields_context_hybrid(f); }
+static Buffer wide_encode_static(WideFields *f, int a) { (void)a; return encode_wide_fields_static_hybrid(f); }
+static Buffer wide_encode_distance(WideFields *f, int a) {
+    (void)a; return encode_wide_fields_distance_context_hybrid(f);
+}
+static Buffer wide_encode_literal_bit(WideFields *f, int a) {
+    (void)a; return encode_wide_fields_literal_bit_hybrid(f);
+}
+static Buffer wide_encode_matched(WideFields *f, int a) {
+    return encode_wide_fields_matched_literal_hybrid(f, a);
+}
+static Buffer wide_encode_control(WideFields *f, int a) {
+    return encode_wide_fields_control_matched_hybrid(f, a);
+}
+static Buffer wide_encode_rep(WideFields *f, int a) { return encode_wide_fields_rep_hybrid(f, a); }
+
+static void add_wide_candidate(WideEncodeBatch *batch, WideFields *fields,
+                               int arithmetic_level) {
+    add_wide_encode(batch, wide_encode_plain, fields, 0, 9);
+    if (arithmetic_level > 0) add_wide_encode(batch, wide_encode_hybrid, fields, 0, 10);
+    if (arithmetic_level > 1) add_wide_encode(batch, wide_encode_order1, fields, 0, 11);
+    if (arithmetic_level > 2) add_wide_encode(batch, wide_encode_context, fields, 0, 12);
+    if (arithmetic_level > 3) add_wide_encode(batch, wide_encode_static, fields, 0, 13);
+    if (arithmetic_level == 12) add_wide_encode(batch, wide_encode_distance, fields, 0, 15);
+}
+
+static void consider_wide_batch(WideEncoding *best, WideEncodeBatch *batch) {
+    for (size_t i = 0; i < batch->count; ++i) {
+        if (batch->items[i].mode == 24 && getenv("BITE_PROFILE"))
+            fprintf(stderr, "bite profile: mode24=%zu current-best=%zu\n",
+                    batch->items[i].result.size, best->data.size);
+        consider_wide_encoding(best, batch->items[i].result, batch->items[i].mode);
+    }
+    batch->count = 0;
+}
+
 static void encode_wide_candidate(WideEncoding *best, WideFields *fields,
                                   int arithmetic_level) {
-    consider_wide_encoding(best, encode_wide_fields(fields), 9);
-    if (arithmetic_level > 0)
-        consider_wide_encoding(best, encode_wide_fields_hybrid(fields), 10);
-    if (arithmetic_level > 1)
-        consider_wide_encoding(best, encode_wide_fields_order1_hybrid(fields), 11);
-    if (arithmetic_level > 2)
-        consider_wide_encoding(best, encode_wide_fields_context_hybrid(fields), 12);
-    if (arithmetic_level > 3)
-        consider_wide_encoding(best, encode_wide_fields_static_hybrid(fields), 13);
-    if (arithmetic_level == 12)
-        consider_wide_encoding(best, encode_wide_fields_distance_context_hybrid(fields), 15);
+    WideEncodeBatch batch = {0};
+    add_wide_candidate(&batch, fields, arithmetic_level);
+    run_wide_encode_batch(&batch);
+    consider_wide_batch(best, &batch);
 }
 
 static WideEncoding wide_split_huffman_encode(const uint8_t *input, size_t input_size,
@@ -3756,38 +3894,24 @@ static WideEncoding wide_split_huffman_encode(const uint8_t *input, size_t input
                               choices, choice_offsets, 1);
             WideFields arithmetic_iterated = build_wide_fields(
                 input, input_size, start, decoded_size, index, choices, choice_offsets);
+            /* The final field set's candidates and hybrids form one batch. */
+            WideEncodeBatch batch = {0};
             if (!fast_preset)
-                encode_wide_candidate(&best, &arithmetic_iterated, arithmetic_level);
+                add_wide_candidate(&batch, &arithmetic_iterated, arithmetic_level);
             if (arithmetic_level > 12)
-                consider_wide_encoding(
-                    &best, encode_wide_fields_literal_bit_hybrid(&arithmetic_iterated), 16);
+                add_wide_encode(&batch, wide_encode_literal_bit, &arithmetic_iterated, 0, 16);
             if (arithmetic_level > 13)
-                consider_wide_encoding(
-                    &best, encode_wide_fields_matched_literal_hybrid(
-                        &arithmetic_iterated, 0),
-                    17);
+                add_wide_encode(&batch, wide_encode_matched, &arithmetic_iterated, 0, 17);
             if (arithmetic_level > 14)
-                consider_wide_encoding(
-                    &best, encode_wide_fields_matched_literal_hybrid(
-                        &arithmetic_iterated, 1),
-                    18);
+                add_wide_encode(&batch, wide_encode_matched, &arithmetic_iterated, 1, 18);
             if (arithmetic_level > 16)
-                consider_wide_encoding(
-                    &best, encode_wide_fields_control_matched_hybrid(
-                        &arithmetic_iterated, 2),
-                    20);
+                add_wide_encode(&batch, wide_encode_control, &arithmetic_iterated, 2, 20);
             if (arithmetic_level > 18)
-                consider_wide_encoding(
-                    &best, encode_wide_fields_rep_hybrid(&arithmetic_iterated, 2), 22);
-            if (context_mix_candidate) {
-                Buffer context_mix = encode_wide_fields_rep_hybrid(
-                    &arithmetic_iterated, 3);
-                if (getenv("BITE_PROFILE"))
-                    fprintf(stderr,
-                            "bite profile: mode24=%zu current-best=%zu\n",
-                            context_mix.size, best.data.size);
-                consider_wide_encoding(&best, context_mix, 24);
-            }
+                add_wide_encode(&batch, wide_encode_rep, &arithmetic_iterated, 2, 22);
+            if (context_mix_candidate)
+                add_wide_encode(&batch, wide_encode_rep, &arithmetic_iterated, 3, 24);
+            run_wide_encode_batch(&batch);
+            consider_wide_batch(&best, &batch);
             if (arithmetic_level > 19) {
                 uint16_t *rep_choices = decoded_size
                     ? (uint16_t *)malloc(decoded_size * sizeof(*rep_choices)) : NULL;
@@ -4491,6 +4615,208 @@ static Buffer compress_blocked(const uint8_t *input, size_t input_size, int lazy
     return output;
 }
 
+/* EXP-0082: one block's independent candidates, filled by parallel tasks. */
+typedef struct {
+    const uint8_t *input;
+    size_t input_size, pos, decoded_size, history_start, history_size, lazy_limit;
+    int entropy, split_entropy, delta_stride, sampled_delta, entropy_parse;
+    const WideMatchIndex *wide_index;
+    Buffer trial, huffman, split, parsed_split, transformed_split, small_alphabet, bwt;
+    size_t payload_size, transformed_stride;
+    uint8_t split_mode, parsed_mode;
+    WideEncoding transformed_wide, wide_split;
+} LinkedBlockWork;
+
+static void linked_legacy_task(void *opaque) {
+    LinkedBlockWork *w = (LinkedBlockWork *)opaque;
+    const uint8_t *input = w->input;
+    size_t input_size = w->input_size, pos = w->pos, decoded_size = w->decoded_size;
+    size_t history_start = w->history_start, history_size = w->history_size;
+    size_t lazy_limit = w->lazy_limit;
+    int entropy = w->entropy, split_entropy = w->split_entropy;
+    int delta_stride = w->delta_stride, sampled_delta = w->sampled_delta;
+    int entropy_parse = w->entropy_parse;
+    (void)input_size; (void)pos; (void)history_start; (void)history_size; (void)lazy_limit;
+    (void)entropy; (void)split_entropy; (void)delta_stride; (void)sampled_delta;
+    Buffer trial = compress_range(input + history_start, history_size + decoded_size,
+                                  history_size, decoded_size, lazy_limit);
+    size_t payload_size = trial.size - HEADER_SIZE;
+    Buffer huffman = {0};
+    if (entropy) huffman = huffman_encode(trial.data + HEADER_SIZE, payload_size);
+    Buffer split = {0};
+    uint8_t split_mode = 6;
+    int compact_models = entropy_parse > 6;
+    if (split_entropy)
+        split = split_huffman_encode_best_model(
+            trial.data + HEADER_SIZE, payload_size, decoded_size,
+            compact_models, &split_mode);
+    Buffer parsed_split = {0};
+    uint8_t parsed_mode = 6;
+    if (entropy_parse) {
+        MatchIndex shared_index = {0};
+        const MatchIndex *shared = NULL;
+        if (entropy_parse > 4) {
+            shared_index = build_match_index(
+                input + history_start, history_size + decoded_size,
+                history_size, decoded_size);
+            shared = &shared_index;
+        }
+        Buffer parsed_trial = compress_entropy_parsed_range(
+            input + history_start, history_size + decoded_size, history_size,
+            decoded_size, trial.data + HEADER_SIZE, payload_size, 0, 0, shared);
+        parsed_split = split_huffman_encode_best_model(
+            parsed_trial.data + HEADER_SIZE, parsed_trial.size - HEADER_SIZE,
+            decoded_size, compact_models, &parsed_mode);
+        if (entropy_parse > 1) {
+            Buffer iterated_trial = compress_entropy_parsed_range(
+                input + history_start, history_size + decoded_size, history_size,
+                decoded_size, parsed_trial.data + HEADER_SIZE,
+                parsed_trial.size - HEADER_SIZE, 0, 0, shared);
+            uint8_t iterated_mode = 6;
+            Buffer iterated_split = split_huffman_encode_best_model(
+                iterated_trial.data + HEADER_SIZE,
+                iterated_trial.size - HEADER_SIZE, decoded_size,
+                compact_models, &iterated_mode);
+            if (iterated_split.size < parsed_split.size) {
+                free(parsed_split.data);
+                parsed_split = iterated_split;
+                parsed_mode = iterated_mode;
+            } else {
+                free(iterated_split.data);
+            }
+            if (entropy_parse > 2) {
+                Buffer distance_trial = compress_entropy_parsed_range(
+                    input + history_start, history_size + decoded_size, history_size,
+                    decoded_size, iterated_trial.data + HEADER_SIZE,
+                    iterated_trial.size - HEADER_SIZE,
+                    entropy_parse > 3 ? 2 : 1,
+                    entropy_parse > 5, shared);
+                uint8_t distance_mode = 6;
+                Buffer distance_split = split_huffman_encode_best_model(
+                    distance_trial.data + HEADER_SIZE,
+                    distance_trial.size - HEADER_SIZE, decoded_size,
+                    compact_models, &distance_mode);
+                if (distance_split.size < parsed_split.size) {
+                    free(parsed_split.data);
+                    parsed_split = distance_split;
+                    parsed_mode = distance_mode;
+                } else {
+                    free(distance_split.data);
+                }
+                free(distance_trial.data);
+            }
+            free(iterated_trial.data);
+        }
+        free(parsed_trial.data);
+        free_match_index(&shared_index);
+    }
+    w->trial = trial; w->payload_size = payload_size; w->huffman = huffman;
+    w->split = split; w->split_mode = split_mode;
+    w->parsed_split = parsed_split; w->parsed_mode = parsed_mode;
+}
+
+static void linked_delta_task(void *opaque) {
+    LinkedBlockWork *w = (LinkedBlockWork *)opaque;
+    const uint8_t *input = w->input;
+    size_t input_size = w->input_size, pos = w->pos, decoded_size = w->decoded_size;
+    size_t history_start = w->history_start, history_size = w->history_size;
+    size_t lazy_limit = w->lazy_limit;
+    int entropy = w->entropy, split_entropy = w->split_entropy;
+    int delta_stride = w->delta_stride, sampled_delta = w->sampled_delta;
+    int entropy_parse = w->entropy_parse;
+    (void)input_size; (void)pos; (void)history_start; (void)history_size; (void)lazy_limit;
+    (void)entropy; (void)split_entropy; (void)delta_stride; (void)sampled_delta;
+    Buffer transformed_split = {0};
+    WideEncoding transformed_wide = {0};
+    size_t transformed_stride = 0;
+    if (delta_stride) {
+        transformed_stride = sampled_delta
+            ? choose_delta_stride_sampled(input + pos, decoded_size)
+            : choose_delta_stride(input + pos, decoded_size);
+        if (transformed_stride) {
+            uint8_t *transformed = (uint8_t *)malloc(decoded_size);
+            if (!transformed) fail("out of memory");
+            delta_transform(input + pos, transformed, decoded_size, transformed_stride);
+            Buffer transformed_trial = compress_range(transformed, decoded_size, 0,
+                                                      decoded_size, lazy_limit);
+            transformed_split = split_huffman_encode(transformed_trial.data + HEADER_SIZE,
+                                                     transformed_trial.size - HEADER_SIZE,
+                                                     decoded_size, 0);
+            free(transformed_trial.data);
+            if (entropy_parse > 18) {
+                WideMatchIndex transformed_index = build_wide_match_index(
+                    transformed, decoded_size, decoded_size,
+                    WIDE_MAX_CHAIN, WIDE_COST_CHAIN);
+                transformed_wide = wide_split_huffman_encode(
+                    transformed, decoded_size, 0, decoded_size, &transformed_index,
+                    5);
+                free_wide_match_index(&transformed_index);
+            }
+            free(transformed);
+        }
+    }
+    w->transformed_split = transformed_split; w->transformed_wide = transformed_wide;
+    w->transformed_stride = transformed_stride;
+}
+
+static void linked_wide_task(void *opaque) {
+    LinkedBlockWork *w = (LinkedBlockWork *)opaque;
+    const uint8_t *input = w->input;
+    size_t input_size = w->input_size, pos = w->pos, decoded_size = w->decoded_size;
+    size_t history_start = w->history_start, history_size = w->history_size;
+    size_t lazy_limit = w->lazy_limit;
+    int entropy = w->entropy, split_entropy = w->split_entropy;
+    int delta_stride = w->delta_stride, sampled_delta = w->sampled_delta;
+    int entropy_parse = w->entropy_parse;
+    (void)input_size; (void)pos; (void)history_start; (void)history_size; (void)lazy_limit;
+    (void)entropy; (void)split_entropy; (void)delta_stride; (void)sampled_delta;
+    WideMatchIndex wide_index = *w->wide_index;
+    WideEncoding wide_split = {0};
+    if (entropy_parse > 7) {
+        int arithmetic_level = entropy_parse > 8 ? entropy_parse - 8 : 0;
+        if (entropy_parse == 31) arithmetic_level = 19;
+        if (entropy_parse == 32) arithmetic_level = 25;
+        if (entropy_parse == 33 || entropy_parse == 34) arithmetic_level = 27;
+        wide_split = wide_split_huffman_encode(
+            input, input_size, pos, decoded_size, &wide_index,
+            arithmetic_level);
+    }
+    w->wide_split = wide_split;
+}
+
+static void linked_small_alphabet_task(void *opaque) {
+    LinkedBlockWork *w = (LinkedBlockWork *)opaque;
+    const uint8_t *input = w->input;
+    size_t input_size = w->input_size, pos = w->pos, decoded_size = w->decoded_size;
+    size_t history_start = w->history_start, history_size = w->history_size;
+    size_t lazy_limit = w->lazy_limit;
+    int entropy = w->entropy, split_entropy = w->split_entropy;
+    int delta_stride = w->delta_stride, sampled_delta = w->sampled_delta;
+    int entropy_parse = w->entropy_parse;
+    (void)input_size; (void)pos; (void)history_start; (void)history_size; (void)lazy_limit;
+    (void)entropy; (void)split_entropy; (void)delta_stride; (void)sampled_delta;
+    Buffer small_alphabet = {0};
+    if (entropy_parse >= 31 && entropy_parse <= 34)
+        small_alphabet = small_alphabet_order4_encode(input + pos, decoded_size);
+    w->small_alphabet = small_alphabet;
+}
+
+static void linked_bwt_task(void *opaque) {
+    LinkedBlockWork *w = (LinkedBlockWork *)opaque;
+    const uint8_t *input = w->input;
+    size_t input_size = w->input_size, pos = w->pos, decoded_size = w->decoded_size;
+    size_t history_start = w->history_start, history_size = w->history_size;
+    size_t lazy_limit = w->lazy_limit;
+    int entropy = w->entropy, split_entropy = w->split_entropy;
+    int delta_stride = w->delta_stride, sampled_delta = w->sampled_delta;
+    int entropy_parse = w->entropy_parse;
+    (void)input_size; (void)pos; (void)history_start; (void)history_size; (void)lazy_limit;
+    (void)entropy; (void)split_entropy; (void)delta_stride; (void)sampled_delta;
+    Buffer bwt = entropy_parse == 34
+        ? bwt_encode(input + pos, decoded_size) : (Buffer){0};
+    w->bwt = bwt;
+}
+
 static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
                                       size_t lazy_limit, int entropy, int split_entropy,
                                       int delta_stride, int sampled_delta,
@@ -4547,132 +4873,29 @@ static Buffer compress_linked_blocked(const uint8_t *input, size_t input_size,
         if (decoded_size > block_size) decoded_size = block_size;
         size_t history_start = pos > WINDOW ? pos - WINDOW : 0;
         size_t history_size = pos - history_start;
-        Buffer trial = compress_range(input + history_start, history_size + decoded_size,
-                                      history_size, decoded_size, lazy_limit);
-        size_t payload_size = trial.size - HEADER_SIZE;
-        Buffer huffman = {0};
-        if (entropy) huffman = huffman_encode(trial.data + HEADER_SIZE, payload_size);
-        Buffer split = {0};
-        uint8_t split_mode = 6;
-        int compact_models = entropy_parse > 6;
-        if (split_entropy)
-            split = split_huffman_encode_best_model(
-                trial.data + HEADER_SIZE, payload_size, decoded_size,
-                compact_models, &split_mode);
-        Buffer parsed_split = {0};
-        uint8_t parsed_mode = 6;
-        if (entropy_parse) {
-            MatchIndex shared_index = {0};
-            const MatchIndex *shared = NULL;
-            if (entropy_parse > 4) {
-                shared_index = build_match_index(
-                    input + history_start, history_size + decoded_size,
-                    history_size, decoded_size);
-                shared = &shared_index;
-            }
-            Buffer parsed_trial = compress_entropy_parsed_range(
-                input + history_start, history_size + decoded_size, history_size,
-                decoded_size, trial.data + HEADER_SIZE, payload_size, 0, 0, shared);
-            parsed_split = split_huffman_encode_best_model(
-                parsed_trial.data + HEADER_SIZE, parsed_trial.size - HEADER_SIZE,
-                decoded_size, compact_models, &parsed_mode);
-            if (entropy_parse > 1) {
-                Buffer iterated_trial = compress_entropy_parsed_range(
-                    input + history_start, history_size + decoded_size, history_size,
-                    decoded_size, parsed_trial.data + HEADER_SIZE,
-                    parsed_trial.size - HEADER_SIZE, 0, 0, shared);
-                uint8_t iterated_mode = 6;
-                Buffer iterated_split = split_huffman_encode_best_model(
-                    iterated_trial.data + HEADER_SIZE,
-                    iterated_trial.size - HEADER_SIZE, decoded_size,
-                    compact_models, &iterated_mode);
-                if (iterated_split.size < parsed_split.size) {
-                    free(parsed_split.data);
-                    parsed_split = iterated_split;
-                    parsed_mode = iterated_mode;
-                } else {
-                    free(iterated_split.data);
-                }
-                if (entropy_parse > 2) {
-                    Buffer distance_trial = compress_entropy_parsed_range(
-                        input + history_start, history_size + decoded_size, history_size,
-                        decoded_size, iterated_trial.data + HEADER_SIZE,
-                        iterated_trial.size - HEADER_SIZE,
-                        entropy_parse > 3 ? 2 : 1,
-                        entropy_parse > 5, shared);
-                    uint8_t distance_mode = 6;
-                    Buffer distance_split = split_huffman_encode_best_model(
-                        distance_trial.data + HEADER_SIZE,
-                        distance_trial.size - HEADER_SIZE, decoded_size,
-                        compact_models, &distance_mode);
-                    if (distance_split.size < parsed_split.size) {
-                        free(parsed_split.data);
-                        parsed_split = distance_split;
-                        parsed_mode = distance_mode;
-                    } else {
-                        free(distance_split.data);
-                    }
-                    free(distance_trial.data);
-                }
-                free(iterated_trial.data);
-            }
-            free(parsed_trial.data);
-            free_match_index(&shared_index);
-        }
-        Buffer transformed_split = {0};
-        WideEncoding transformed_wide = {0};
-        size_t transformed_stride = 0;
-        if (delta_stride) {
-            transformed_stride = sampled_delta
-                ? choose_delta_stride_sampled(input + pos, decoded_size)
-                : choose_delta_stride(input + pos, decoded_size);
-            if (transformed_stride) {
-                uint8_t *transformed = (uint8_t *)malloc(decoded_size);
-                if (!transformed) fail("out of memory");
-                delta_transform(input + pos, transformed, decoded_size, transformed_stride);
-                Buffer transformed_trial = compress_range(transformed, decoded_size, 0,
-                                                          decoded_size, lazy_limit);
-                transformed_split = split_huffman_encode(transformed_trial.data + HEADER_SIZE,
-                                                         transformed_trial.size - HEADER_SIZE,
-                                                         decoded_size, 0);
-                free(transformed_trial.data);
-                if (entropy_parse > 18) {
-                    WideMatchIndex transformed_index = build_wide_match_index(
-                        transformed, decoded_size, decoded_size,
-                        WIDE_MAX_CHAIN, WIDE_COST_CHAIN);
-                    transformed_wide = wide_split_huffman_encode(
-                        transformed, decoded_size, 0, decoded_size, &transformed_index,
-                        5);
-                    free_wide_match_index(&transformed_index);
-                }
-                free(transformed);
-            }
-        }
+        LinkedBlockWork work = {
+            .input = input, .input_size = input_size, .pos = pos,
+            .decoded_size = decoded_size, .history_start = history_start,
+            .history_size = history_size, .lazy_limit = lazy_limit, .entropy = entropy,
+            .split_entropy = split_entropy, .delta_stride = delta_stride,
+            .sampled_delta = sampled_delta, .entropy_parse = entropy_parse,
+            .wide_index = &wide_index};
+        /* Longest first, so a small thread count still overlaps the rest. */
+        BiteTask tasks[] = {{linked_wide_task, &work}, {linked_legacy_task, &work},
+                            {linked_delta_task, &work}, {linked_small_alphabet_task, &work},
+                            {linked_bwt_task, &work}};
+        run_tasks(tasks, sizeof(tasks) / sizeof(tasks[0]));
         if (profile) {
-            fprintf(stderr, "bite profile: legacy-and-delta %.6f s\n",
+            fprintf(stderr, "bite profile: block-candidates %.6f s\n",
                     (double)(clock() - profile_phase_start) / CLOCKS_PER_SEC);
             profile_phase_start = clock();
         }
-        WideEncoding wide_split = {0};
-        if (entropy_parse > 7) {
-            int arithmetic_level = entropy_parse > 8 ? entropy_parse - 8 : 0;
-            if (entropy_parse == 31) arithmetic_level = 19;
-            if (entropy_parse == 32) arithmetic_level = 25;
-            if (entropy_parse == 33 || entropy_parse == 34) arithmetic_level = 27;
-            wide_split = wide_split_huffman_encode(
-                input, input_size, pos, decoded_size, &wide_index,
-                arithmetic_level);
-        }
-        if (profile) {
-            fprintf(stderr, "bite profile: wide-parse-and-code %.6f s\n",
-                    (double)(clock() - profile_phase_start) / CLOCKS_PER_SEC);
-            profile_phase_start = clock();
-        }
-        Buffer small_alphabet = {0};
-        if (entropy_parse >= 31 && entropy_parse <= 34)
-            small_alphabet = small_alphabet_order4_encode(input + pos, decoded_size);
-        Buffer bwt = entropy_parse == 34
-            ? bwt_encode(input + pos, decoded_size) : (Buffer){0};
+        Buffer trial = work.trial, huffman = work.huffman, split = work.split;
+        Buffer parsed_split = work.parsed_split, transformed_split = work.transformed_split;
+        Buffer small_alphabet = work.small_alphabet, bwt = work.bwt;
+        size_t payload_size = work.payload_size, transformed_stride = work.transformed_stride;
+        uint8_t split_mode = work.split_mode, parsed_mode = work.parsed_mode;
+        WideEncoding transformed_wide = work.transformed_wide, wide_split = work.wide_split;
         uint8_t mode = 0;
         size_t stored_size = decoded_size;
         const Buffer *selected_split = NULL;
