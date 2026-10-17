@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "mode": "cbwt",
+    "corpus_dir": "/Users/eonurk/bite-exp/main-ab/corpus/research",
+    "files": 16,
+    "repeats": 5,
+    "platform": "Darwin Kernel Version 27.0.0: Tue Aug 11 21:05:27 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8103",
+    "timestamp_utc": "2026-10-17T15:04:06Z",
+    "variants": {
+      "old": {
+        "binary": "/Users/eonurk/bite-timing/bin/bite",
+        "env": {}
+      },
+      "new": {
+        "binary": "/Users/eonurk/bite-exp/main-ab/bin/bite",
+        "env": {}
+      }
+    }
+  },
+  "summary": {
+    "old": {
+      "median_wall_seconds": 3.0490464980102843,
+      "median_cpu_seconds": 3.030470000000001,
+      "speedup_vs_first": 1.0,
+      "wall_seconds": [
+        3.044103961008659,
+        3.0490464980102843,
+        3.0482545000049868,
+        3.052371288991708,
+        3.051217956999608
+      ],
+      "cpu_seconds": [
+        3.0254909999999997,
+        3.0294909999999975,
+        3.030470000000001,
+        3.0333329999999954,
+        3.0327730000000095
+      ]
+    },
+    "new": {
+      "median_wall_seconds": 1.922796541992284,
+      "median_cpu_seconds": 1.9036940000000033,
+      "speedup_vs_first": 1.5857353762718178,
+      "wall_seconds": [
+        2.2923877510038437,
+        1.9270279980119085,
+        1.9179724139976315,
+        1.922796541992284,
+        1.9139127929956885
+      ],
+      "cpu_seconds": [
+        1.952807,
+        1.9071020000000036,
+        1.8992549999999984,
+        1.9036940000000033,
+        1.8949309999999926
+      ]
+    }
+  }
+}
