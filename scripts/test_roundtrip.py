@@ -62,6 +62,30 @@ with tempfile.TemporaryDirectory() as directory:
         modes += ("clblinksopt2df",)
         modes += ("clblinksopt2dfs",)
         modes += ("clblinksopt2dfsb",)
+        modes += ("clblinksopt2dfsbc",)
+        modes += ("clblinksopt2dfsbw",)
+        modes += ("clblinksopt2dfsbwa",)
+        modes += ("clblinksopt2dfsbwa1",)
+        modes += ("clblinksopt2dfsbwac",)
+        modes += ("clblinksopt2dfsbwas",)
+        modes += ("clblinksopt2dfsbwasp",)
+        modes += ("clblinksopt2dfsbwasp2",)
+        modes += ("clblinksopt2dfsbwasp2b",)
+        modes += ("clblinksopt2dfsbwasp2b16",)
+        modes += ("clblinksopt2dfsbwasp2b16x",)
+        modes += ("clblinksopt2dfsbwasp2b16x2",)
+        modes += ("clblinksopt2dfsbwasp2b16x2t",)
+        modes += ("clblinksopt2dfsbwasp2b16x2td",)
+        modes += ("clblinksopt2dfsbwasp2b16x2tdl",)
+        modes += ("clblinksopt2dfsbwasp2b16x2tdlm",)
+        modes += ("clblinksopt2dfsbwasp2b16x2tdlmm",)
+        modes += ("clblinksopt2dfsbwasp2b16x2tdlmmdc",)
+        modes += ("clblinksopt2dfsbwasp2b16x2tdlmmdcr",)
+        modes += (
+            "clblinksopt2dfsbwasp2b16x2tdlmmdcra4",
+            "clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3",
+            "clblinksopt2dfsbwasp2b16x2tdlmmdcra4f",
+        )
         tasks = [(mode, index, source, hashes[index], temp)
                  for mode in modes for index, source in enumerate(sources)]
         list(executor.map(roundtrip, tasks))

@@ -43,6 +43,81 @@ static Buffer benchmark_compress(const char *mode, const Buffer *input) {
     if (strcmp(mode, "clblinksopt2dfsb") == 0)
         return compress_linked_blocked(input->data, input->size, MAX_MATCH,
                                        1, 1, 1, 1, 6);
+    if (strcmp(mode, "clblinksopt2dfsbc") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 7);
+    if (strcmp(mode, "clblinksopt2dfsbw") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 8);
+    if (strcmp(mode, "clblinksopt2dfsbwa") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 9);
+    if (strcmp(mode, "clblinksopt2dfsbwa1") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 10);
+    if (strcmp(mode, "clblinksopt2dfsbwac") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 11);
+    if (strcmp(mode, "clblinksopt2dfsbwas") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 12);
+    if (strcmp(mode, "clblinksopt2dfsbwasp") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 13);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 14);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 15);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 16);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 17);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 18);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2t") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 19);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2td") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 20);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdl") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 21);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlm") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 22);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmm") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 23);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmmdc") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 25);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmmdcr") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 27);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmmdcrg") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 28);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmmdcrg2") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 29);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmmdcrb") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 30);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmmdcra4") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 31);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmmdcra4cm3") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 33);
+    if (strcmp(mode, "clblinksopt2dfsbwasp2b16x2tdlmmdcra4f") == 0)
+        return compress_linked_blocked(input->data, input->size, MAX_MATCH,
+                                       1, 1, 1, 1, 32);
     if (strcmp(mode, "clblinksd") == 0)
         return compress_linked_blocked(input->data, input->size, MAX_MATCH,
                                        1, 1, 1, 0, 0);
