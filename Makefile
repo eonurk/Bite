@@ -1,7 +1,7 @@
 CC ?= cc
 CFLAGS ?= -O3 -DNDEBUG -std=c11 -Wall -Wextra -Wpedantic
 
-.PHONY: all clean test corpus research-corpus benchmark benchmark-screen benchmark-validate
+.PHONY: all clean test test-bwt corpus research-corpus benchmark benchmark-screen benchmark-validate
 
 CACHE ?= results/exp-0004
 LABEL ?= staged
@@ -9,11 +9,11 @@ CODECS ?=
 
 all: bin/bite bin/bite-bench
 
-bin/bite: src/bite.c
+bin/bite: src/bite.c src/bite_bwt.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) $< -o $@
 
-bin/bite-bench: src/bite_bench.c src/bite.c
+bin/bite-bench: src/bite_bench.c src/bite.c src/bite_bwt.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -Wno-unused-function src/bite_bench.c -o $@
 
@@ -26,6 +26,9 @@ research-corpus:
 
 test: bin/bite corpus
 	python3 scripts/test_roundtrip.py
+
+test-bwt:
+	python3 scripts/test_bwt.py
 
 benchmark: bin/bite corpus
 	python3 scripts/benchmark.py --stage audit --repeats 3

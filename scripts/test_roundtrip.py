@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory() as directory:
     sources = FILES + edge_files
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:
         hashes = list(executor.map(digest, sources))
-        modes = ("c", "cl", "cb", "clb", "cbh", "clbh", "cblink", "clblink",
+        modes = ("cmax", "cbwt", "cfast", "c", "cl", "cb", "clb", "cbh", "clbh", "cblink", "clblink",
                  "cblinkh", "clblinkh", "cblinks", "clblinks")
         modes += ("clblinksg",)
         modes += ("clblinksd",)

@@ -47,6 +47,8 @@ CODECS = [
     Codec("bite-link-lazy", str(ROOT / "bin/bite"), ("clblink", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-huff-greedy", str(ROOT / "bin/bite"), ("cblinkh", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-huff-lazy", str(ROOT / "bin/bite"), ("clblinkh", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-max-bwt", str(ROOT / "bin/bite"), ("cmax", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
+    Codec("bite-bwt", str(ROOT / "bin/bite"), ("cbwt", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-greedy", str(ROOT / "bin/bite"), ("cblinks", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-lazy", str(ROOT / "bin/bite"), ("clblinks", "{input}", "{output}"), ("d", "{input}", "{output}"), True),
     Codec("bite-link-split-gated", str(ROOT / "bin/bite"), ("clblinksg", "{input}", "{output}"), ("d", "{input}", "{output}"), True),

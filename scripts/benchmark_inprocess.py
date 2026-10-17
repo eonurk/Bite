@@ -12,6 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "bin" / "bite-bench"
 CODECS = {
+    "bite-max-bwt": ("cmax", "d"),
+    "bite-bwt": ("cbwt", "d"),
+    "bite-fast": ("cfast", "d"),
     "bite-link-split-delta-filter": ("clblinksdf", "d"),
     "bite-link-split-optimal": ("clblinksopt", "d"),
     "bite-link-split-optimal-iterated": ("clblinksopt2", "d"),
